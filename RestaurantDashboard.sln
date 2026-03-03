@@ -15,6 +15,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantDashboard.Infrast
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantDashboard.Web", "backend\RestaurantDashboard\RestaurantDashboard.Web\RestaurantDashboard.Web.csproj", "{BEFDA942-2B73-4695-AEB1-B547F0A4255A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantDashboard.Domain.Tests", "backend\RestaurantDashboard\RestaurantDashboard.Domain.Tests\RestaurantDashboard.Domain.Tests.csproj", "{ACDE6DA4-23F4-4F83-9D8C-AA09ECD9E04C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestaurantDashboard.Application.Tests", "backend\RestaurantDashboard\RestaurantDashboard.Application.Tests\RestaurantDashboard.Application.Tests.csproj", "{EA365ECD-3250-4A63-B41B-500667ABFD81}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -40,6 +44,14 @@ Global
 		{BEFDA942-2B73-4695-AEB1-B547F0A4255A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BEFDA942-2B73-4695-AEB1-B547F0A4255A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BEFDA942-2B73-4695-AEB1-B547F0A4255A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ACDE6DA4-23F4-4F83-9D8C-AA09ECD9E04C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ACDE6DA4-23F4-4F83-9D8C-AA09ECD9E04C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ACDE6DA4-23F4-4F83-9D8C-AA09ECD9E04C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ACDE6DA4-23F4-4F83-9D8C-AA09ECD9E04C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA365ECD-3250-4A63-B41B-500667ABFD81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA365ECD-3250-4A63-B41B-500667ABFD81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA365ECD-3250-4A63-B41B-500667ABFD81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA365ECD-3250-4A63-B41B-500667ABFD81}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{515079EC-8C9C-4350-BCF0-FAAF67E10C5A} = {5FF9B35D-C9A4-400E-9913-CC045486EE34}
@@ -47,5 +59,7 @@ Global
 		{53EF9ABB-6A31-47D5-9BAA-F412707D91A4} = {515079EC-8C9C-4350-BCF0-FAAF67E10C5A}
 		{D949B861-838A-4879-9DB3-5A0BFE7C0736} = {515079EC-8C9C-4350-BCF0-FAAF67E10C5A}
 		{BEFDA942-2B73-4695-AEB1-B547F0A4255A} = {515079EC-8C9C-4350-BCF0-FAAF67E10C5A}
+		{ACDE6DA4-23F4-4F83-9D8C-AA09ECD9E04C} = {515079EC-8C9C-4350-BCF0-FAAF67E10C5A}
+		{EA365ECD-3250-4A63-B41B-500667ABFD81} = {515079EC-8C9C-4350-BCF0-FAAF67E10C5A}
 	EndGlobalSection
 EndGlobal
