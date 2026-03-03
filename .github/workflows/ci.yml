@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Build, Test & Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # ── 1. Format check (fail fast) ───────────────────────────────────────
+      - name: Format check
+        run: dotnet format RestaurantDashboard.sln --verify-no-changes
+
+      # ── 2. Restore (cached) ───────────────────────────────────────────────
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore RestaurantDashboard.sln
+
+      # ── 3. Build ──────────────────────────────────────────────────────────
+      - name: Build
+        run: dotnet build RestaurantDashboard.sln --no-restore --configuration Release
+
+      # ── 4. Test + coverage ────────────────────────────────────────────────
+      - name: Test
+        run: |
+          dotnet test RestaurantDashboard.sln \
+            --no-build \
+            --configuration Release \
+            --collect:"XPlat Code Coverage" \
+            --results-directory TestResults/ \
+            --logger "trx;LogFileName=test-results.trx"
+
+      # ── 5. Coverage summary (ReportGenerator) ────────────────────────────
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool
+
+      - name: Generate coverage report
+        run: |
+          reportgenerator \
+            -reports:"TestResults/**/coverage.cobertura.xml" \
+            -targetdir:"TestResults/CoverageReport" \
+            -reporttypes:"MarkdownSummaryGithub"
+
+      - name: Post coverage summary
+        run: cat TestResults/CoverageReport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+
+      # ── 6. Publish web artifact ───────────────────────────────────────────
+      - name: Publish web app
+        run: |
+          dotnet publish \
+            backend/RestaurantDashboard/RestaurantDashboard.Web/RestaurantDashboard.Web.csproj \
+            --no-restore \
+            --configuration Release \
+            --output publish/
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: restaurant-dashboard-web
+          path: publish/
+
+      # ── 7. Upload test results ────────────────────────────────────────────
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
