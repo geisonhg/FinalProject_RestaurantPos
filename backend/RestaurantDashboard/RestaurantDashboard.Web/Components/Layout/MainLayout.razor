@@ -1,23 +1,65 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
 
-<div class="page">
-    <div class="sidebar">
+<div class="app-layout @(sidebarCollapsed ? "sidebar-collapsed" : "")">
+
+    <aside class="app-sidebar">
         <NavMenu />
-    </div>
+    </aside>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+    <div class="app-main">
 
-        <article class="content px-4">
+        <header class="app-topbar">
+            <button class="topbar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
+                <svg viewBox="0 0 24 24">
+                    <line x1="3" y1="6"  x2="21" y2="6"  />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+            </button>
+
+            <div class="topbar-breadcrumb">@GetPageTitle()</div>
+
+            <div class="topbar-right">
+                <AuthorizeView>
+                    <Authorized>
+                        <div class="topbar-user">
+                            <div class="topbar-avatar">
+                                @(context.User.Identity?.Name?.Substring(0, 1).ToUpperInvariant() ?? "U")
+                            </div>
+                            <span class="topbar-username">@context.User.Identity?.Name</span>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </header>
+
+        <main class="app-content">
             @Body
-        </article>
-    </main>
+        </main>
+
+    </div>
 </div>
 
 <div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
+    Error inesperado. <a href="" class="reload">Recargar</a>
+    <a class="dismiss">✕</a>
 </div>
+
+@code {
+    private bool sidebarCollapsed = false;
+
+    private void ToggleSidebar() => sidebarCollapsed = !sidebarCollapsed;
+
+    private string GetPageTitle()
+    {
+        var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimEnd('/');
+        return path switch
+        {
+            "dashboard" => "Dashboard",
+            "orders"    => "Órdenes Abiertas",
+            "menu"      => "Gestión de Menú",
+            _           => "Restaurant POS"
+        };
+    }
+}

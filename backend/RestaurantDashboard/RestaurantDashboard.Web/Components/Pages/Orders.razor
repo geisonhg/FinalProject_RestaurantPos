@@ -1,0 +1,221 @@
+@page "/orders"
+@attribute [Authorize(Policy = "AllStaff")]
+@using MediatR
+@using RestaurantDashboard.Application.Sales.Queries.GetOpenOrders
+@using RestaurantDashboard.Application.Sales.Commands.CloseOrder
+@using RestaurantDashboard.Application.Sales.Commands.VoidOrder
+@using RestaurantDashboard.Application.Sales.Dtos
+@inject IMediator Mediator
+
+<PageTitle>Órdenes</PageTitle>
+
+<div class="ord-page">
+    <div class="ord-header">
+        <div>
+            <h1 class="ord-title">Órdenes Abiertas</h1>
+            <p class="ord-subtitle">Gestión de mesas en tiempo real</p>
+        </div>
+        <button class="ord-btn ord-btn--refresh" @onclick="LoadOrders">↻ Actualizar</button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="ord-loading">
+            <div class="ord-spinner"></div>
+            <span>Cargando órdenes...</span>
+        </div>
+    }
+    else if (orders is not null && orders.Any())
+    {
+        <div class="ord-grid">
+            @foreach (var order in orders)
+            {
+                <div class="ord-card @(selectedOrderId == order.Id ? "ord-card--selected" : "")"
+                     @onclick="() => SelectOrder(order)">
+                    <div class="ord-card__head">
+                        <span class="ord-card__table">Mesa @order.TableNumber</span>
+                        <span class="ord-card__status ord-card__status--@order.Status.ToLower()">@order.Status</span>
+                    </div>
+                    <div class="ord-card__employee">👤 @order.EmployeeName</div>
+                    <div class="ord-card__time">🕐 @order.OpenedAt.ToString("hh:mm tt")</div>
+                    <div class="ord-card__total">@order.Subtotal.ToString("C")</div>
+                    @if (!string.IsNullOrEmpty(order.Notes))
+                    {
+                        <div class="ord-card__notes">📝 @order.Notes</div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (selectedOrder is not null)
+        {
+            <div class="ord-detail">
+                <div class="ord-detail__head">
+                    <h2>Mesa @selectedOrder.TableNumber — Detalle</h2>
+                    <div class="ord-detail__actions">
+                        <button class="ord-btn ord-btn--close" @onclick="CloseOrder" disabled="@isActing">
+                            ✅ Cerrar Orden
+                        </button>
+                        <button class="ord-btn ord-btn--void" @onclick="VoidOrder" disabled="@isActing">
+                            ❌ Anular
+                        </button>
+                    </div>
+                </div>
+
+                <table class="ord-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cant.</th>
+                            <th>P. Unit.</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in selectedOrder.Items)
+                        {
+                            <tr>
+                                <td>@item.MenuItemName</td>
+                                <td>@item.Quantity</td>
+                                <td>@item.UnitPrice.ToString("C")</td>
+                                <td class="ord-table__total">@item.LineTotal.ToString("C")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="ord-table__subtotal-label">Subtotal</td>
+                            <td class="ord-table__subtotal">@selectedOrder.Subtotal.ToString("C")</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+    }
+    else if (!isLoading)
+    {
+        <div class="ord-empty">
+            <span>🎉</span>
+            <p>No hay órdenes abiertas en este momento</p>
+        </div>
+    }
+
+    @if (actionMessage is not null)
+    {
+        <div class="ord-toast ord-toast--@(actionSuccess ? "success" : "error")">
+            @actionMessage
+        </div>
+    }
+</div>
+
+<style>
+    .ord-page { padding: 2rem; background: #0f1117; min-height: 100vh; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+    .ord-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .ord-title { font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0; }
+    .ord-subtitle { color: #64748b; margin: 0.25rem 0 0; }
+    .ord-btn { padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
+    .ord-btn--refresh { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; }
+    .ord-btn--refresh:hover { background: #2d3748; }
+    .ord-btn--close { background: #10b981; color: white; }
+    .ord-btn--close:hover:not(:disabled) { background: #059669; }
+    .ord-btn--void { background: #ef4444; color: white; }
+    .ord-btn--void:hover:not(:disabled) { background: #dc2626; }
+    .ord-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ord-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .ord-card { background: #1e2433; border: 2px solid #2d3748; border-radius: 14px; padding: 1.25rem; cursor: pointer; transition: all 0.2s; }
+    .ord-card:hover { border-color: #3b82f6; transform: translateY(-2px); }
+    .ord-card--selected { border-color: #3b82f6; background: #1a2540; }
+    .ord-card__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .ord-card__table { font-size: 1.2rem; font-weight: 700; color: #f8fafc; }
+    .ord-card__status { font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 20px; font-weight: 600; }
+    .ord-card__status--open { background: #064e3b; color: #10b981; }
+    .ord-card__status--pending { background: #451a03; color: #f59e0b; }
+    .ord-card__employee { font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.35rem; }
+    .ord-card__time { font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem; }
+    .ord-card__total { font-size: 1.3rem; font-weight: 700; color: #10b981; }
+    .ord-card__notes { font-size: 0.8rem; color: #64748b; margin-top: 0.5rem; border-top: 1px solid #2d3748; padding-top: 0.5rem; }
+    .ord-detail { background: #1e2433; border: 1px solid #2d3748; border-radius: 14px; padding: 1.5rem; }
+    .ord-detail__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem; }
+    .ord-detail__head h2 { margin: 0; color: #f8fafc; }
+    .ord-detail__actions { display: flex; gap: 0.75rem; }
+    .ord-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .ord-table th { text-align: left; padding: 0.6rem 0.75rem; color: #64748b; border-bottom: 1px solid #2d3748; }
+    .ord-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #1a2030; }
+    .ord-table tfoot td { border-top: 2px solid #2d3748; border-bottom: none; font-weight: 700; }
+    .ord-table__total, .ord-table__subtotal { color: #10b981; text-align: right; font-weight: 600; }
+    .ord-table__subtotal-label { text-align: right; color: #94a3b8; }
+    .ord-loading { display: flex; align-items: center; gap: 1rem; padding: 3rem; color: #64748b; }
+    .ord-spinner { width: 32px; height: 32px; border: 3px solid #2d3748; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+    .ord-empty { text-align: center; padding: 4rem; color: #64748b; }
+    .ord-empty span { font-size: 3rem; display: block; margin-bottom: 1rem; }
+    .ord-toast { position: fixed; bottom: 2rem; right: 2rem; padding: 1rem 1.5rem; border-radius: 10px; font-weight: 600; animation: slideIn 0.3s ease; z-index: 999; }
+    .ord-toast--success { background: #064e3b; border: 1px solid #10b981; color: #6ee7b7; }
+    .ord-toast--error { background: #2d1515; border: 1px solid #ef4444; color: #fca5a5; }
+    @@keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+</style>
+
+@code {
+    private IReadOnlyList<OrderDto>? orders;
+    private OrderDto? selectedOrder;
+    private Guid? selectedOrderId;
+    private bool isLoading = true;
+    private bool isActing = false;
+    private string? actionMessage;
+    private bool actionSuccess = true;
+
+    protected override async Task OnInitializedAsync() => await LoadOrders();
+
+    private async Task LoadOrders()
+    {
+        isLoading = true;
+        try { orders = await Mediator.Send(new GetOpenOrdersQuery()); }
+        catch (Exception ex) { ShowMessage($"Error: {ex.Message}", false); }
+        finally { isLoading = false; }
+    }
+
+    private void SelectOrder(OrderDto order)
+    {
+        selectedOrder = order;
+        selectedOrderId = order.Id;
+    }
+
+    private async Task CloseOrder()
+    {
+        if (selectedOrder is null) return;
+        isActing = true;
+        try
+        {
+            await Mediator.Send(new CloseOrderCommand { OrderId = selectedOrder.Id });
+            ShowMessage($"Orden de Mesa {selectedOrder.TableNumber} cerrada.", true);
+            selectedOrder = null;
+            selectedOrderId = null;
+            await LoadOrders();
+        }
+        catch (Exception ex) { ShowMessage($"Error: {ex.Message}", false); }
+        finally { isActing = false; }
+    }
+
+    private async Task VoidOrder()
+    {
+        if (selectedOrder is null) return;
+        isActing = true;
+        try
+        {
+            await Mediator.Send(new VoidOrderCommand { OrderId = selectedOrder.Id });
+            ShowMessage($"Orden de Mesa {selectedOrder.TableNumber} anulada.", true);
+            selectedOrder = null;
+            selectedOrderId = null;
+            await LoadOrders();
+        }
+        catch (Exception ex) { ShowMessage($"Error: {ex.Message}", false); }
+        finally { isActing = false; }
+    }
+
+    private void ShowMessage(string msg, bool success)
+    {
+        actionMessage = msg;
+        actionSuccess = success;
+        _ = Task.Delay(3000).ContinueWith(_ => { actionMessage = null; InvokeAsync(StateHasChanged); });
+    }
+}

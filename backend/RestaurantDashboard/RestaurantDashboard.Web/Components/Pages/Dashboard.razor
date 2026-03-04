@@ -1,0 +1,348 @@
+@page "/dashboard"
+@attribute [Authorize(Policy = "ManagerPlus")]
+@using MediatR
+@using RestaurantDashboard.Application.Sales.Queries.GetSalesSummary
+@using RestaurantDashboard.Application.Sales.Dtos
+@inject IMediator Mediator
+@inject IJSRuntime JS
+
+<PageTitle>Dashboard — Restaurant POS</PageTitle>
+
+<div class="rd-page">
+
+    <!-- Header -->
+    <div class="rd-header">
+        <div>
+            <h1 class="rd-title">Resumen de Rendimiento</h1>
+            <p class="rd-subtitle">Métricas financieras del restaurante</p>
+        </div>
+        <div class="rd-date-filter">
+            <div class="rd-date-group">
+                <label class="rd-date-label">Desde</label>
+                <input class="rd-date-input" type="date" @bind="fromDate" @bind:event="oninput" @onchange="LoadData" />
+            </div>
+            <div class="rd-date-group">
+                <label class="rd-date-label">Hasta</label>
+                <input class="rd-date-input" type="date" @bind="toDate" @bind:event="oninput" @onchange="LoadData" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    @if (isLoading)
+    {
+        <div class="rd-loading">
+            <div class="rd-spinner"></div>
+            <span>Cargando datos...</span>
+        </div>
+    }
+    else if (summary is not null)
+    {
+        <!-- KPI Cards -->
+        <div class="rd-kpi-grid">
+
+            <div class="rd-kpi">
+                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--green">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </div>
+                <div class="rd-kpi__body">
+                    <div class="rd-kpi__value">@summary.TotalRevenue.ToString("C")</div>
+                    <div class="rd-kpi__label">Ingresos Totales</div>
+                </div>
+                <div class="rd-kpi__accent rd-kpi__accent--green"></div>
+            </div>
+
+            <div class="rd-kpi">
+                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--blue">
+                    <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                </div>
+                <div class="rd-kpi__body">
+                    <div class="rd-kpi__value @(summary.NetProfit < 0 ? "rd-kpi__value--negative" : "")">@summary.NetProfit.ToString("C")</div>
+                    <div class="rd-kpi__label">Ganancia Neta</div>
+                </div>
+                <div class="rd-kpi__accent rd-kpi__accent--blue"></div>
+            </div>
+
+            <div class="rd-kpi">
+                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--red">
+                    <svg viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+                </div>
+                <div class="rd-kpi__body">
+                    <div class="rd-kpi__value">@summary.TotalExpenses.ToString("C")</div>
+                    <div class="rd-kpi__label">Gastos Totales</div>
+                </div>
+                <div class="rd-kpi__accent rd-kpi__accent--red"></div>
+            </div>
+
+            <div class="rd-kpi">
+                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--amber">
+                    <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </div>
+                <div class="rd-kpi__body">
+                    <div class="rd-kpi__value">@summary.TotalTips.ToString("C")</div>
+                    <div class="rd-kpi__label">Propinas</div>
+                </div>
+                <div class="rd-kpi__accent rd-kpi__accent--amber"></div>
+            </div>
+
+            <div class="rd-kpi">
+                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--purple">
+                    <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+                </div>
+                <div class="rd-kpi__body">
+                    <div class="rd-kpi__value">@summary.TotalTransactions</div>
+                    <div class="rd-kpi__label">Transacciones</div>
+                </div>
+                <div class="rd-kpi__accent rd-kpi__accent--purple"></div>
+            </div>
+
+            <div class="rd-kpi">
+                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--cyan">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+                </div>
+                <div class="rd-kpi__body">
+                    <div class="rd-kpi__value">@summary.AverageOrderValue.ToString("C")</div>
+                    <div class="rd-kpi__label">Ticket Promedio</div>
+                </div>
+                <div class="rd-kpi__accent rd-kpi__accent--cyan"></div>
+            </div>
+
+        </div>
+
+        <!-- Financial Chart -->
+        <div class="rd-card rd-chart-card">
+            <div class="rd-card__header">
+                <h2 class="rd-card__title">Resumen Financiero</h2>
+                <span class="rd-card__subtitle">Ingresos · Ganancia · Gastos · Propinas</span>
+            </div>
+            <div class="rd-chart-wrap">
+                <canvas id="financialChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Data Tables -->
+        <div class="rd-tables-row">
+
+            @if (summary.TopSellingItems.Any())
+            {
+                <div class="rd-card">
+                    <div class="rd-card__header">
+                        <h2 class="rd-card__title">Top Productos</h2>
+                    </div>
+                    <table class="rd-table">
+                        <thead>
+                            <tr><th>Producto</th><th class="rd-table__right">Ventas</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in summary.TopSellingItems.OrderByDescending(x => x.Value).Take(8))
+                            {
+                                <tr>
+                                    <td>@item.Key</td>
+                                    <td class="rd-table__amount">@item.Value.ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (summary.RevenueByPaymentMethod.Any())
+            {
+                <div class="rd-card">
+                    <div class="rd-card__header">
+                        <h2 class="rd-card__title">Métodos de Pago</h2>
+                    </div>
+                    <table class="rd-table">
+                        <thead>
+                            <tr><th>Método</th><th class="rd-table__right">Ingresos</th><th class="rd-table__right">Transac.</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var method in summary.RevenueByPaymentMethod)
+                            {
+                                <tr>
+                                    <td>@method.Key</td>
+                                    <td class="rd-table__amount">@method.Value.ToString("C")</td>
+                                    <td class="rd-table__count">@(summary.TransactionsByPaymentMethod.GetValueOrDefault(method.Key, 0))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (summary.ExpensesByCategory.Any())
+            {
+                <div class="rd-card">
+                    <div class="rd-card__header">
+                        <h2 class="rd-card__title">Gastos por Categoría</h2>
+                    </div>
+                    <table class="rd-table">
+                        <thead>
+                            <tr><th>Categoría</th><th class="rd-table__right">Total</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var exp in summary.ExpensesByCategory.OrderByDescending(x => x.Value))
+                            {
+                                <tr>
+                                    <td>@exp.Key</td>
+                                    <td class="rd-table__amount">@exp.Value.ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+        </div>
+    }
+    else if (errorMessage is not null)
+    {
+        <div class="rd-error">
+            <svg viewBox="0 0 24 24" class="rd-error__icon"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            @errorMessage
+        </div>
+    }
+
+</div>
+
+<style>
+    /* Page shell */
+    .rd-page { padding: 1.75rem 2rem; min-height: 100%; color: #e2e8f0; }
+
+    /* Header */
+    .rd-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem; }
+    .rd-title   { font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0; }
+    .rd-subtitle { color: #64748b; margin: 0.2rem 0 0; font-size: 0.875rem; }
+
+    /* Date filter */
+    .rd-date-filter { display: flex; gap: 0.75rem; align-items: flex-end; background: #1a1f2e; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid #252d3d; flex-wrap: wrap; }
+    .rd-date-group  { display: flex; flex-direction: column; gap: 0.25rem; }
+    .rd-date-label  { font-size: 0.75rem; color: #64748b; font-weight: 500; }
+    .rd-date-input  { background: #0a0c12; border: 1px solid #252d3d; color: #e2e8f0; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.875rem; }
+    .rd-date-input:focus { outline: none; border-color: #3b82f6; }
+
+    /* KPI Grid */
+    .rd-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+
+    .rd-kpi {
+        background: #1a1f2e;
+        border: 1px solid #252d3d;
+        border-radius: 14px;
+        padding: 1.25rem 1.25rem 1.25rem 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .rd-kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+
+    .rd-kpi__icon-wrap {
+        width: 44px; height: 44px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .rd-kpi__icon-wrap svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .rd-kpi__icon-wrap--green  { background: rgba(16,185,129,0.15); color: #10b981; }
+    .rd-kpi__icon-wrap--blue   { background: rgba(59,130,246,0.15); color: #3b82f6; }
+    .rd-kpi__icon-wrap--red    { background: rgba(239,68,68,0.15);  color: #ef4444; }
+    .rd-kpi__icon-wrap--amber  { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .rd-kpi__icon-wrap--purple { background: rgba(139,92,246,0.15); color: #8b5cf6; }
+    .rd-kpi__icon-wrap--cyan   { background: rgba(6,182,212,0.15);  color: #06b6d4; }
+
+    .rd-kpi__body { flex: 1; min-width: 0; }
+    .rd-kpi__value { font-size: 1.45rem; font-weight: 700; color: #f1f5f9; line-height: 1.2; }
+    .rd-kpi__value--negative { color: #ef4444; }
+    .rd-kpi__label { font-size: 0.78rem; color: #64748b; margin-top: 0.2rem; white-space: nowrap; }
+
+    .rd-kpi__accent {
+        position: absolute; left: 0; top: 0; bottom: 0;
+        width: 3px; border-radius: 14px 0 0 14px;
+    }
+    .rd-kpi__accent--green  { background: #10b981; }
+    .rd-kpi__accent--blue   { background: #3b82f6; }
+    .rd-kpi__accent--red    { background: #ef4444; }
+    .rd-kpi__accent--amber  { background: #f59e0b; }
+    .rd-kpi__accent--purple { background: #8b5cf6; }
+    .rd-kpi__accent--cyan   { background: #06b6d4; }
+
+    /* Cards */
+    .rd-card { background: #1a1f2e; border: 1px solid #252d3d; border-radius: 14px; padding: 1.25rem 1.5rem; }
+    .rd-card__header { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; }
+    .rd-card__title  { font-size: 0.95rem; font-weight: 600; color: #f1f5f9; margin: 0; }
+    .rd-card__subtitle { font-size: 0.78rem; color: #4b5563; }
+
+    /* Chart */
+    .rd-chart-card { margin-bottom: 1.5rem; }
+    .rd-chart-wrap { height: 240px; position: relative; }
+
+    /* Data tables */
+    .rd-tables-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; }
+
+    .rd-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .rd-table th { text-align: left; padding: 0.5rem 0.75rem; color: #4b5563; border-bottom: 1px solid #252d3d; font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .rd-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #1e2538; color: #cbd5e1; }
+    .rd-table tr:last-child td { border-bottom: none; }
+    .rd-table tr:hover td { background: #1e2538; }
+    .rd-table__right  { text-align: right; }
+    .rd-table__amount { color: #10b981; font-weight: 600; text-align: right; }
+    .rd-table__count  { color: #94a3b8; text-align: right; }
+
+    /* Loading */
+    .rd-loading { display: flex; align-items: center; gap: 1rem; padding: 4rem; color: #64748b; justify-content: center; }
+    .rd-spinner { width: 36px; height: 36px; border: 3px solid #252d3d; border-top-color: #3b82f6; border-radius: 50%; animation: rd-spin 0.8s linear infinite; }
+    @@keyframes rd-spin { to { transform: rotate(360deg); } }
+
+    /* Error */
+    .rd-error { display: flex; align-items: center; gap: 0.75rem; background: #1a0d0d; border: 1px solid #ef4444; color: #fca5a5; padding: 1rem 1.25rem; border-radius: 10px; }
+    .rd-error__icon { width: 20px; height: 20px; stroke: #ef4444; fill: none; stroke-width: 2; stroke-linecap: round; flex-shrink: 0; }
+</style>
+
+@code {
+    private SalesSummaryDto? summary;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private DateOnly fromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
+    private DateOnly toDate   = DateOnly.FromDateTime(DateTime.Today);
+    private bool _chartNeedsRender = false;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = null;
+        _chartNeedsRender = false;
+        try
+        {
+            summary = await Mediator.Send(new GetSalesSummaryQuery { From = fromDate, To = toDate });
+            _chartNeedsRender = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error cargando datos: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_chartNeedsRender && summary is not null)
+        {
+            _chartNeedsRender = false;
+            var labels = new[] { "Ingresos", "Ganancia Neta", "Gastos", "Propinas" };
+            var data   = new[] {
+                (double)summary.TotalRevenue,
+                (double)summary.NetProfit,
+                (double)summary.TotalExpenses,
+                (double)summary.TotalTips
+            };
+            await JS.InvokeVoidAsync("renderBarChart", "financialChart", labels, data, "€");
+        }
+    }
+}
