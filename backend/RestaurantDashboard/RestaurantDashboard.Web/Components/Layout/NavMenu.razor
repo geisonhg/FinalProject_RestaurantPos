@@ -1,99 +1,127 @@
-<div class="sidebar-inner">
+<div class="sidenav-brand">
+    <span class="sidenav-logo">🍽</span>
+    <span class="sidenav-name">Restaurant<span class="sidenav-pos">POS</span></span>
+</div>
 
-    <!-- Brand -->
-    <div class="sidebar-brand">
-        <span class="sidebar-brand__icon">🍽️</span>
-        <div>
-            <div class="sidebar-brand__name">Restaurant</div>
-            <div class="sidebar-brand__sub">POS Dashboard</div>
-        </div>
+<nav class="sidenav">
+    <div class="sidenav-section">
+        <span class="sidenav-section-label">Principal</span>
+        <NavLink class="sidenav-link" href="/dashboard" Match="NavLinkMatch.All">
+            <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            Dashboard
+        </NavLink>
+        <NavLink class="sidenav-link" href="/orders">
+            <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+            </svg>
+            Órdenes
+        </NavLink>
+        <NavLink class="sidenav-link" href="/menu">
+            <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+                <path d="M8 12h8M12 8v8"/>
+            </svg>
+            Menú
+        </NavLink>
     </div>
 
-    <!-- Navigation -->
-    <nav class="sidebar-nav">
-        <span class="sidebar-nav-label">Principal</span>
-
-        <NavLink class="sidebar-nav-item" href="/dashboard" Match="NavLinkMatch.All">
-            <span class="sidebar-nav-item__icon">
-                <svg viewBox="0 0 24 24">
-                    <rect x="3" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="14" width="7" height="7" rx="1" />
-                    <rect x="3" y="14" width="7" height="7" rx="1" />
-                </svg>
-            </span>
-            <span class="sidebar-nav-item__label">Dashboard</span>
-        </NavLink>
-
-        <NavLink class="sidebar-nav-item" href="/orders">
-            <span class="sidebar-nav-item__icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                    <rect x="9" y="3" width="6" height="4" rx="1" />
-                    <line x1="9" y1="12" x2="15" y2="12" />
-                    <line x1="9" y1="16" x2="12" y2="16" />
-                </svg>
-            </span>
-            <span class="sidebar-nav-item__label">Órdenes</span>
-        </NavLink>
-
-        <NavLink class="sidebar-nav-item" href="/menu">
-            <span class="sidebar-nav-item__icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M3 11l19-9-9 19-2-8-8-2z" />
-                </svg>
-            </span>
-            <span class="sidebar-nav-item__label">Menú</span>
-        </NavLink>
-    </nav>
-
-    <!-- Bottom: user info + logout -->
-    <div class="sidebar-bottom">
-        <AuthorizeView>
-            <Authorized>
-                <div class="sidebar-user">
-                    <div class="sidebar-user__avatar">
-                        @(context.User.Identity?.Name?.Substring(0, 1).ToUpperInvariant() ?? "U")
-                    </div>
-                    <div class="sidebar-user__info">
-                        <div class="sidebar-user__name">@context.User.Identity?.Name</div>
-                        <div class="sidebar-user__role">
-                            @(context.User.IsInRole("Admin") ? "Admin"
-                              : context.User.IsInRole("Manager") ? "Manager"
-                              : "Staff")
-                        </div>
-                    </div>
-                </div>
-
-                <form action="/Account/Logout" method="post" class="sidebar-logout-form">
+    <AuthorizeView>
+        <Authorized>
+            <div class="sidenav-section sidenav-section--bottom">
+                <span class="sidenav-section-label">Cuenta</span>
+                <NavLink class="sidenav-link" href="/Account/Manage">
+                    <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                    </svg>
+                    @context.User.Identity?.Name
+                </NavLink>
+                <form action="/Account/Logout" method="post">
                     <AntiforgeryToken />
                     <input type="hidden" name="ReturnUrl" value="/" />
-                    <button type="submit" class="sidebar-nav-item sidebar-nav-item--logout">
-                        <span class="sidebar-nav-item__icon">
-                            <svg viewBox="0 0 24 24">
-                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                                <polyline points="16 17 21 12 16 7" />
-                                <line x1="21" y1="12" x2="9" y2="12" />
-                            </svg>
-                        </span>
-                        <span class="sidebar-nav-item__label">Cerrar Sesión</span>
+                    <button type="submit" class="sidenav-link sidenav-logout">
+                        <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/>
+                        </svg>
+                        Cerrar Sesión
                     </button>
                 </form>
-            </Authorized>
-
-            <NotAuthorized>
-                <NavLink class="sidebar-nav-item" href="/Account/Login">
-                    <span class="sidebar-nav-item__icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                            <polyline points="10 17 15 12 10 7" />
-                            <line x1="15" y1="12" x2="3" y2="12" />
-                        </svg>
-                    </span>
-                    <span class="sidebar-nav-item__label">Iniciar Sesión</span>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <div class="sidenav-section sidenav-section--bottom">
+                <NavLink class="sidenav-link" href="/Account/Login">
+                    <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/>
+                    </svg>
+                    Iniciar Sesión
                 </NavLink>
-            </NotAuthorized>
-        </AuthorizeView>
-    </div>
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</nav>
 
-</div>
+<style>
+    .sidenav-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 1.1rem 1.25rem;
+        border-bottom: 1px solid #1e2433;
+    }
+    .sidenav-logo { font-size: 1.3rem; }
+    .sidenav-name { font-size: 0.95rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.02em; }
+    .sidenav-pos { color: #3b82f6; margin-left: 0.2rem; }
+
+    .sidenav { display: flex; flex-direction: column; height: calc(100vh - 56px); padding: 0.75rem 0; }
+    .sidenav-section { padding: 0 0.75rem; }
+    .sidenav-section--bottom { margin-top: auto; border-top: 1px solid #1e2433; padding-top: 0.75rem; }
+    .sidenav-section-label {
+        display: block;
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #1e3a5f;
+        font-weight: 800;
+        padding: 0.5rem 0.6rem 0.3rem;
+    }
+
+    .sidenav-link {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.6rem 0.75rem;
+        border-radius: 8px;
+        color: #475569;
+        text-decoration: none;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.15s;
+        margin-bottom: 0.1rem;
+        border-left: 2px solid transparent;
+        width: 100%;
+    }
+    .sidenav-link:hover { color: #94a3b8; background: #0f1320; }
+    .sidenav-link.active { color: #e2e8f0; background: #0f1320; border-left-color: #3b82f6; }
+
+    .sidenav-icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        opacity: 0.6;
+    }
+    .sidenav-link.active .sidenav-icon,
+    .sidenav-link:hover .sidenav-icon { opacity: 1; }
+
+    .sidenav-logout {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        text-align: left;
+    }
+    .sidenav-logout:hover { color: #f87171 !important; }
+</style>

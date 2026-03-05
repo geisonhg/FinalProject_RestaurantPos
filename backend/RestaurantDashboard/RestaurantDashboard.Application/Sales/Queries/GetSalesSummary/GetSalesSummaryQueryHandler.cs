@@ -2,41 +2,31 @@ using MediatR;
 using RestaurantDashboard.Application.Sales.Dtos;
 using RestaurantDashboard.Domain.Enums;
 using RestaurantDashboard.Domain.Repositories;
-
 namespace RestaurantDashboard.Application.Sales.Queries.GetSalesSummary;
-
 public sealed class GetSalesSummaryQueryHandler
     : IRequestHandler<GetSalesSummaryQuery, SalesSummaryDto>
 {
     private readonly ISaleRepository _sales;
     private readonly IExpenseRepository _expenses;
-
     public GetSalesSummaryQueryHandler(ISaleRepository sales, IExpenseRepository expenses)
     {
         _sales = sales;
         _expenses = expenses;
     }
-
     public async Task<SalesSummaryDto> Handle(
         GetSalesSummaryQuery request,
         CancellationToken cancellationToken)
     {
-        var salesTask = _sales.GetByDateRangeAsync(request.From, request.To, cancellationToken);
-        var expenseTask = _expenses.GetTotalAsync(request.From, request.To, cancellationToken);
-
-        await Task.WhenAll(salesTask, expenseTask);
-
-        var saleRecords = salesTask.Result;
-        var totalExpenses = expenseTask.Result;
+        // Sequential — EF Core DbContext is not thread-safe
+        var saleRecords = await _sales.GetByDateRangeAsync(request.From, request.To, cancellationToken);
+        var totalExpenses = await _expenses.GetTotalAsync(request.From, request.To, cancellationToken);
 
         var revenueByPayment = saleRecords
             .GroupBy(s => s.PaymentMethod)
             .ToDictionary(g => g.Key.ToString(), g => g.Sum(s => s.TotalAmount.Amount));
-
         var txByPayment = saleRecords
             .GroupBy(s => s.PaymentMethod)
             .ToDictionary(g => g.Key.ToString(), g => g.Count());
-
         return new SalesSummaryDto
         {
             PeriodStart = request.From,

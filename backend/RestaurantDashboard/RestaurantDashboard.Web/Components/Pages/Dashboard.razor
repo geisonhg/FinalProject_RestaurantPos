@@ -6,343 +6,310 @@
 @inject IMediator Mediator
 @inject IJSRuntime JS
 
-<PageTitle>Dashboard — Restaurant POS</PageTitle>
+<PageTitle>Dashboard</PageTitle>
 
-<div class="rd-page">
-
-    <!-- Header -->
-    <div class="rd-header">
+<div class="dash">
+    <div class="dash-header">
         <div>
-            <h1 class="rd-title">Resumen de Rendimiento</h1>
-            <p class="rd-subtitle">Métricas financieras del restaurante</p>
+            <h1 class="dash-title">Performance <span class="dash-accent">Overview</span></h1>
+            <p class="dash-period">@fromDate.ToString("dd MMM") — @toDate.ToString("dd MMM yyyy")</p>
         </div>
-        <div class="rd-date-filter">
-            <div class="rd-date-group">
-                <label class="rd-date-label">Desde</label>
-                <input class="rd-date-input" type="date" @bind="fromDate" @bind:event="oninput" @onchange="LoadData" />
-            </div>
-            <div class="rd-date-group">
-                <label class="rd-date-label">Hasta</label>
-                <input class="rd-date-input" type="date" @bind="toDate" @bind:event="oninput" @onchange="LoadData" />
-            </div>
+        <div class="dash-controls">
+            <button class="dash-preset @(preset == 7 ? "active" : "")" @onclick="() => SetPreset(7)">7D</button>
+            <button class="dash-preset @(preset == 30 ? "active" : "")" @onclick="() => SetPreset(30)">30D</button>
+            <button class="dash-preset @(preset == 90 ? "active" : "")" @onclick="() => SetPreset(90)">90D</button>
+            <div class="dash-divider"></div>
+            <input class="dash-date-input" type="date" @bind="fromDate" @bind:event="oninput" @onchange="LoadData" />
+            <input class="dash-date-input" type="date" @bind="toDate" @bind:event="oninput" @onchange="LoadData" />
         </div>
     </div>
 
-    <!-- Loading -->
     @if (isLoading)
     {
-        <div class="rd-loading">
-            <div class="rd-spinner"></div>
-            <span>Cargando datos...</span>
+        <div class="dash-loading">
+            <div class="dash-pulse"></div>
+            <div class="dash-pulse" style="animation-delay:0.15s"></div>
+            <div class="dash-pulse" style="animation-delay:0.3s"></div>
         </div>
     }
     else if (summary is not null)
     {
-        <!-- KPI Cards -->
-        <div class="rd-kpi-grid">
-
-            <div class="rd-kpi">
-                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--green">
-                    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                </div>
-                <div class="rd-kpi__body">
-                    <div class="rd-kpi__value">@summary.TotalRevenue.ToString("C")</div>
-                    <div class="rd-kpi__label">Ingresos Totales</div>
-                </div>
-                <div class="rd-kpi__accent rd-kpi__accent--green"></div>
+        <div class="kpi-row">
+            <div class="kpi kpi--green">
+                <div class="kpi__label">Ingresos</div>
+                <div class="kpi__value">€@summary.TotalRevenue.ToString("N2")</div>
+                <div class="kpi__sub">Total del período</div>
+                <div class="kpi__bar"></div>
             </div>
-
-            <div class="rd-kpi">
-                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--blue">
-                    <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                </div>
-                <div class="rd-kpi__body">
-                    <div class="rd-kpi__value @(summary.NetProfit < 0 ? "rd-kpi__value--negative" : "")">@summary.NetProfit.ToString("C")</div>
-                    <div class="rd-kpi__label">Ganancia Neta</div>
-                </div>
-                <div class="rd-kpi__accent rd-kpi__accent--blue"></div>
+            <div class="kpi kpi--blue">
+                <div class="kpi__label">Ganancia Neta</div>
+                <div class="kpi__value">€@summary.NetProfit.ToString("N2")</div>
+                <div class="kpi__sub">Ingresos − Gastos</div>
+                <div class="kpi__bar"></div>
             </div>
-
-            <div class="rd-kpi">
-                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--red">
-                    <svg viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
-                </div>
-                <div class="rd-kpi__body">
-                    <div class="rd-kpi__value">@summary.TotalExpenses.ToString("C")</div>
-                    <div class="rd-kpi__label">Gastos Totales</div>
-                </div>
-                <div class="rd-kpi__accent rd-kpi__accent--red"></div>
+            <div class="kpi kpi--red">
+                <div class="kpi__label">Gastos</div>
+                <div class="kpi__value">€@summary.TotalExpenses.ToString("N2")</div>
+                <div class="kpi__sub">Total del período</div>
+                <div class="kpi__bar"></div>
             </div>
-
-            <div class="rd-kpi">
-                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--amber">
-                    <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                </div>
-                <div class="rd-kpi__body">
-                    <div class="rd-kpi__value">@summary.TotalTips.ToString("C")</div>
-                    <div class="rd-kpi__label">Propinas</div>
-                </div>
-                <div class="rd-kpi__accent rd-kpi__accent--amber"></div>
+            <div class="kpi kpi--amber">
+                <div class="kpi__label">Propinas</div>
+                <div class="kpi__value">€@summary.TotalTips.ToString("N2")</div>
+                <div class="kpi__sub">Acumuladas</div>
+                <div class="kpi__bar"></div>
             </div>
-
-            <div class="rd-kpi">
-                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--purple">
-                    <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-                </div>
-                <div class="rd-kpi__body">
-                    <div class="rd-kpi__value">@summary.TotalTransactions</div>
-                    <div class="rd-kpi__label">Transacciones</div>
-                </div>
-                <div class="rd-kpi__accent rd-kpi__accent--purple"></div>
+            <div class="kpi kpi--purple">
+                <div class="kpi__label">Transacciones</div>
+                <div class="kpi__value">@summary.TotalTransactions</div>
+                <div class="kpi__sub">Órdenes cerradas</div>
+                <div class="kpi__bar"></div>
             </div>
-
-            <div class="rd-kpi">
-                <div class="rd-kpi__icon-wrap rd-kpi__icon-wrap--cyan">
-                    <svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
-                </div>
-                <div class="rd-kpi__body">
-                    <div class="rd-kpi__value">@summary.AverageOrderValue.ToString("C")</div>
-                    <div class="rd-kpi__label">Ticket Promedio</div>
-                </div>
-                <div class="rd-kpi__accent rd-kpi__accent--cyan"></div>
-            </div>
-
-        </div>
-
-        <!-- Financial Chart -->
-        <div class="rd-card rd-chart-card">
-            <div class="rd-card__header">
-                <h2 class="rd-card__title">Resumen Financiero</h2>
-                <span class="rd-card__subtitle">Ingresos · Ganancia · Gastos · Propinas</span>
-            </div>
-            <div class="rd-chart-wrap">
-                <canvas id="financialChart"></canvas>
+            <div class="kpi kpi--cyan">
+                <div class="kpi__label">Ticket Promedio</div>
+                <div class="kpi__value">€@summary.AverageOrderValue.ToString("N2")</div>
+                <div class="kpi__sub">Por orden</div>
+                <div class="kpi__bar"></div>
             </div>
         </div>
 
-        <!-- Data Tables -->
-        <div class="rd-tables-row">
-
-            @if (summary.TopSellingItems.Any())
+        <div class="dash-grid">
+            @if (summary.RevenueByPaymentMethod.Any())
             {
-                <div class="rd-card">
-                    <div class="rd-card__header">
-                        <h2 class="rd-card__title">Top Productos</h2>
+                <div class="dash-card dash-card--wide">
+                    <div class="dash-card__head">
+                        <span class="dash-card__title">Ingresos por Método de Pago</span>
                     </div>
-                    <table class="rd-table">
-                        <thead>
-                            <tr><th>Producto</th><th class="rd-table__right">Ventas</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in summary.TopSellingItems.OrderByDescending(x => x.Value).Take(8))
-                            {
-                                <tr>
-                                    <td>@item.Key</td>
-                                    <td class="rd-table__amount">@item.Value.ToString("C")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <div class="chart-wrap">
+                        <canvas id="paymentChart"></canvas>
+                    </div>
                 </div>
             }
 
-            @if (summary.RevenueByPaymentMethod.Any())
+            @if (summary.TopSellingItems.Any())
             {
-                <div class="rd-card">
-                    <div class="rd-card__header">
-                        <h2 class="rd-card__title">Métodos de Pago</h2>
+                <div class="dash-card">
+                    <div class="dash-card__head">
+                        <span class="dash-card__title">Top Productos</span>
+                        <span class="dash-card__badge">por ventas</span>
                     </div>
-                    <table class="rd-table">
-                        <thead>
-                            <tr><th>Método</th><th class="rd-table__right">Ingresos</th><th class="rd-table__right">Transac.</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var method in summary.RevenueByPaymentMethod)
-                            {
-                                <tr>
-                                    <td>@method.Key</td>
-                                    <td class="rd-table__amount">@method.Value.ToString("C")</td>
-                                    <td class="rd-table__count">@(summary.TransactionsByPaymentMethod.GetValueOrDefault(method.Key, 0))</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <div class="rank-list">
+                        @{ int rank = 1; var maxVal = summary.TopSellingItems.Values.Max(); }
+                        @foreach (var item in summary.TopSellingItems.OrderByDescending(x => x.Value).Take(7))
+                        {
+                            var pct = maxVal > 0 ? (int)(item.Value / maxVal * 100) : 0;
+                            <div class="rank-item">
+                                <span class="rank-num">#@rank</span>
+                                <div class="rank-info">
+                                    <span class="rank-name">@item.Key</span>
+                                    <div class="rank-track"><div class="rank-bar" style="width:@pct%"></div></div>
+                                </div>
+                                <span class="rank-val">€@item.Value.ToString("N2")</span>
+                            </div>
+                            rank++;
+                        }
+                    </div>
                 </div>
             }
 
             @if (summary.ExpensesByCategory.Any())
             {
-                <div class="rd-card">
-                    <div class="rd-card__header">
-                        <h2 class="rd-card__title">Gastos por Categoría</h2>
+                <div class="dash-card">
+                    <div class="dash-card__head">
+                        <span class="dash-card__title">Gastos por Categoría</span>
+                        <span class="dash-card__badge">€@summary.TotalExpenses.ToString("N0") total</span>
                     </div>
-                    <table class="rd-table">
-                        <thead>
-                            <tr><th>Categoría</th><th class="rd-table__right">Total</th></tr>
-                        </thead>
+                    <div class="expense-list">
+                        @foreach (var exp in summary.ExpensesByCategory.OrderByDescending(x => x.Value))
+                        {
+                            var pct = summary.TotalExpenses > 0 ? (int)(exp.Value / summary.TotalExpenses * 100) : 0;
+                            <div class="expense-item">
+                                <div class="expense-top">
+                                    <span class="expense-cat">@exp.Key</span>
+                                    <span class="expense-val">€@exp.Value.ToString("N2")</span>
+                                </div>
+                                <div class="expense-track"><div class="expense-fill" style="width:@pct%"></div></div>
+                                <span class="expense-pct">@pct% del total</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (summary.TransactionsByPaymentMethod.Any())
+            {
+                <div class="dash-card">
+                    <div class="dash-card__head">
+                        <span class="dash-card__title">Desglose de Pagos</span>
+                        <span class="dash-card__badge">@summary.TotalTransactions tx</span>
+                    </div>
+                    <table class="data-table">
+                        <thead><tr><th>Método</th><th>Ingresos</th><th>Tx</th></tr></thead>
                         <tbody>
-                            @foreach (var exp in summary.ExpensesByCategory.OrderByDescending(x => x.Value))
+                            @foreach (var m in summary.RevenueByPaymentMethod.OrderByDescending(x => x.Value))
                             {
                                 <tr>
-                                    <td>@exp.Key</td>
-                                    <td class="rd-table__amount">@exp.Value.ToString("C")</td>
+                                    <td><span class="method-dot"></span>@m.Key</td>
+                                    <td class="td-green">€@m.Value.ToString("N2")</td>
+                                    <td class="td-blue">@summary.TransactionsByPaymentMethod.GetValueOrDefault(m.Key, 0)</td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
             }
-
         </div>
     }
     else if (errorMessage is not null)
     {
-        <div class="rd-error">
-            <svg viewBox="0 0 24 24" class="rd-error__icon"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            @errorMessage
-        </div>
+        <div class="dash-error">⚠ @errorMessage</div>
     }
-
+    else
+    {
+        <div class="dash-empty">No hay datos para el período seleccionado.</div>
+    }
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+    window.renderPaymentChart = function(id, labels, values) {
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        if (canvas._ci) canvas._ci.destroy();
+        canvas._ci = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4'],
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: '#1e2433' }, ticks: { color: '#475569', font: { size: 11 } } },
+                    y: { grid: { color: '#1e2433' }, ticks: { color: '#475569', callback: v => '€' + v, font: { size: 11 } } }
+                }
+            }
+        });
+    };
+</script>
+
 <style>
-    /* Page shell */
-    .rd-page { padding: 1.75rem 2rem; min-height: 100%; color: #e2e8f0; }
+    .dash { padding: 1.75rem 2rem; min-height: 100vh; background: #0b0e14; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .dash-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem; }
+    .dash-title { font-size: 1.75rem; font-weight: 800; color: #f8fafc; letter-spacing: -0.03em; margin: 0; }
+    .dash-accent { color: #3b82f6; }
+    .dash-period { color: #475569; font-size: 0.82rem; margin-top: 0.2rem; }
+    .dash-controls { display: flex; align-items: center; gap: 0.4rem; background: #131720; border: 1px solid #1e2433; border-radius: 10px; padding: 0.45rem; }
+    .dash-preset { background: none; border: none; color: #475569; font-size: 0.78rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 6px; cursor: pointer; transition: all 0.15s; letter-spacing: 0.04em; }
+    .dash-preset:hover { color: #e2e8f0; background: #1e2433; }
+    .dash-preset.active { background: #1d3461; color: #60a5fa; }
+    .dash-divider { width: 1px; height: 18px; background: #1e2433; margin: 0 0.2rem; }
+    .dash-date-input { background: #0b0e14; border: 1px solid #1e2433; color: #64748b; padding: 0.3rem 0.5rem; border-radius: 6px; font-size: 0.78rem; }
 
-    /* Header */
-    .rd-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem; }
-    .rd-title   { font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0; }
-    .rd-subtitle { color: #64748b; margin: 0.2rem 0 0; font-size: 0.875rem; }
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .kpi { background: #131720; border: 1px solid #1e2433; border-radius: 12px; padding: 1.1rem 1.1rem 0; overflow: hidden; transition: transform 0.2s; }
+    .kpi:hover { transform: translateY(-2px); }
+    .kpi__label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; font-weight: 700; margin-bottom: 0.45rem; }
+    .kpi__value { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+    .kpi__sub { font-size: 0.72rem; color: #334155; margin-top: 0.35rem; margin-bottom: 0.9rem; }
+    .kpi__bar { height: 3px; margin: 0 -1.1rem; }
+    .kpi--green .kpi__value { color: #34d399; } .kpi--green .kpi__bar { background: #10b981; }
+    .kpi--blue  .kpi__value { color: #60a5fa; } .kpi--blue  .kpi__bar { background: #3b82f6; }
+    .kpi--red   .kpi__value { color: #f87171; } .kpi--red   .kpi__bar { background: #ef4444; }
+    .kpi--amber .kpi__value { color: #fbbf24; } .kpi--amber .kpi__bar { background: #f59e0b; }
+    .kpi--purple .kpi__value { color: #a78bfa; } .kpi--purple .kpi__bar { background: #8b5cf6; }
+    .kpi--cyan  .kpi__value { color: #22d3ee; } .kpi--cyan  .kpi__bar { background: #06b6d4; }
 
-    /* Date filter */
-    .rd-date-filter { display: flex; gap: 0.75rem; align-items: flex-end; background: #1a1f2e; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid #252d3d; flex-wrap: wrap; }
-    .rd-date-group  { display: flex; flex-direction: column; gap: 0.25rem; }
-    .rd-date-label  { font-size: 0.75rem; color: #64748b; font-weight: 500; }
-    .rd-date-input  { background: #0a0c12; border: 1px solid #252d3d; color: #e2e8f0; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.875rem; }
-    .rd-date-input:focus { outline: none; border-color: #3b82f6; }
+    .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; }
+    .dash-card { background: #131720; border: 1px solid #1e2433; border-radius: 12px; padding: 1.25rem; }
+    .dash-card--wide { grid-column: 1 / -1; }
+    .dash-card__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .dash-card__title { font-size: 0.72rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; }
+    .dash-card__badge { font-size: 0.7rem; background: #0f1320; color: #334155; padding: 0.2rem 0.6rem; border-radius: 20px; border: 1px solid #1e2433; }
+    .chart-wrap { height: 200px; position: relative; }
 
-    /* KPI Grid */
-    .rd-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .rank-list { display: flex; flex-direction: column; gap: 0.8rem; }
+    .rank-item { display: flex; align-items: center; gap: 0.7rem; }
+    .rank-num { font-size: 0.68rem; color: #1e2d4a; font-weight: 800; width: 18px; text-align: right; flex-shrink: 0; }
+    .rank-info { flex: 1; min-width: 0; }
+    .rank-name { font-size: 0.83rem; color: #94a3b8; display: block; margin-bottom: 0.28rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-track { height: 4px; background: #1e2433; border-radius: 2px; overflow: hidden; }
+    .rank-bar { height: 100%; background: linear-gradient(90deg, #1d4ed8, #06b6d4); border-radius: 2px; transition: width 0.6s ease; }
+    .rank-val { font-size: 0.8rem; color: #34d399; font-weight: 700; flex-shrink: 0; }
 
-    .rd-kpi {
-        background: #1a1f2e;
-        border: 1px solid #252d3d;
-        border-radius: 14px;
-        padding: 1.25rem 1.25rem 1.25rem 1.25rem;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        position: relative;
-        overflow: hidden;
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .rd-kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .expense-list { display: flex; flex-direction: column; gap: 0.9rem; }
+    .expense-top { display: flex; justify-content: space-between; margin-bottom: 0.3rem; }
+    .expense-cat { font-size: 0.83rem; color: #94a3b8; }
+    .expense-val { font-size: 0.83rem; color: #f87171; font-weight: 700; }
+    .expense-track { height: 4px; background: #1e2433; border-radius: 3px; overflow: hidden; margin-bottom: 0.2rem; }
+    .expense-fill { height: 100%; background: linear-gradient(90deg, #991b1b, #f97316); border-radius: 3px; }
+    .expense-pct { font-size: 0.68rem; color: #334155; }
 
-    .rd-kpi__icon-wrap {
-        width: 44px; height: 44px;
-        border-radius: 10px;
-        display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0;
-    }
-    .rd-kpi__icon-wrap svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .rd-kpi__icon-wrap--green  { background: rgba(16,185,129,0.15); color: #10b981; }
-    .rd-kpi__icon-wrap--blue   { background: rgba(59,130,246,0.15); color: #3b82f6; }
-    .rd-kpi__icon-wrap--red    { background: rgba(239,68,68,0.15);  color: #ef4444; }
-    .rd-kpi__icon-wrap--amber  { background: rgba(245,158,11,0.15); color: #f59e0b; }
-    .rd-kpi__icon-wrap--purple { background: rgba(139,92,246,0.15); color: #8b5cf6; }
-    .rd-kpi__icon-wrap--cyan   { background: rgba(6,182,212,0.15);  color: #06b6d4; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.45rem 0.5rem; color: #334155; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #1e2433; }
+    .data-table td { padding: 0.6rem 0.5rem; border-bottom: 1px solid #0f1320; color: #64748b; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .td-green { color: #34d399; font-weight: 700; }
+    .td-blue { color: #60a5fa; font-weight: 600; }
+    .method-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; margin-right: 0.5rem; vertical-align: middle; }
 
-    .rd-kpi__body { flex: 1; min-width: 0; }
-    .rd-kpi__value { font-size: 1.45rem; font-weight: 700; color: #f1f5f9; line-height: 1.2; }
-    .rd-kpi__value--negative { color: #ef4444; }
-    .rd-kpi__label { font-size: 0.78rem; color: #64748b; margin-top: 0.2rem; white-space: nowrap; }
-
-    .rd-kpi__accent {
-        position: absolute; left: 0; top: 0; bottom: 0;
-        width: 3px; border-radius: 14px 0 0 14px;
-    }
-    .rd-kpi__accent--green  { background: #10b981; }
-    .rd-kpi__accent--blue   { background: #3b82f6; }
-    .rd-kpi__accent--red    { background: #ef4444; }
-    .rd-kpi__accent--amber  { background: #f59e0b; }
-    .rd-kpi__accent--purple { background: #8b5cf6; }
-    .rd-kpi__accent--cyan   { background: #06b6d4; }
-
-    /* Cards */
-    .rd-card { background: #1a1f2e; border: 1px solid #252d3d; border-radius: 14px; padding: 1.25rem 1.5rem; }
-    .rd-card__header { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 1rem; }
-    .rd-card__title  { font-size: 0.95rem; font-weight: 600; color: #f1f5f9; margin: 0; }
-    .rd-card__subtitle { font-size: 0.78rem; color: #4b5563; }
-
-    /* Chart */
-    .rd-chart-card { margin-bottom: 1.5rem; }
-    .rd-chart-wrap { height: 240px; position: relative; }
-
-    /* Data tables */
-    .rd-tables-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; }
-
-    .rd-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    .rd-table th { text-align: left; padding: 0.5rem 0.75rem; color: #4b5563; border-bottom: 1px solid #252d3d; font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .rd-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #1e2538; color: #cbd5e1; }
-    .rd-table tr:last-child td { border-bottom: none; }
-    .rd-table tr:hover td { background: #1e2538; }
-    .rd-table__right  { text-align: right; }
-    .rd-table__amount { color: #10b981; font-weight: 600; text-align: right; }
-    .rd-table__count  { color: #94a3b8; text-align: right; }
-
-    /* Loading */
-    .rd-loading { display: flex; align-items: center; gap: 1rem; padding: 4rem; color: #64748b; justify-content: center; }
-    .rd-spinner { width: 36px; height: 36px; border: 3px solid #252d3d; border-top-color: #3b82f6; border-radius: 50%; animation: rd-spin 0.8s linear infinite; }
-    @@keyframes rd-spin { to { transform: rotate(360deg); } }
-
-    /* Error */
-    .rd-error { display: flex; align-items: center; gap: 0.75rem; background: #1a0d0d; border: 1px solid #ef4444; color: #fca5a5; padding: 1rem 1.25rem; border-radius: 10px; }
-    .rd-error__icon { width: 20px; height: 20px; stroke: #ef4444; fill: none; stroke-width: 2; stroke-linecap: round; flex-shrink: 0; }
+    .dash-loading { display: flex; align-items: center; gap: 0.5rem; padding: 4rem; justify-content: center; }
+    .dash-pulse { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; animation: pulse 1s ease-in-out infinite; }
+    @@keyframes pulse { 0%,100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+    .dash-error { background: #1a0a0a; border: 1px solid #7f1d1d; color: #fca5a5; padding: 1rem 1.5rem; border-radius: 10px; }
+    .dash-empty { text-align: center; padding: 4rem; color: #334155; }
 </style>
 
 @code {
     private SalesSummaryDto? summary;
     private bool isLoading = true;
     private string? errorMessage;
+    private int preset = 30;
     private DateOnly fromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-    private DateOnly toDate   = DateOnly.FromDateTime(DateTime.Today);
-    private bool _chartNeedsRender = false;
+    private DateOnly toDate = DateOnly.FromDateTime(DateTime.Today);
 
     protected override async Task OnInitializedAsync() => await LoadData();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!isLoading && summary is not null && summary.RevenueByPaymentMethod.Any())
+            await RenderChart();
+    }
+
+    private async Task SetPreset(int days)
+    {
+        preset = days;
+        fromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-days));
+        toDate = DateOnly.FromDateTime(DateTime.Today);
+        await LoadData();
+    }
 
     private async Task LoadData()
     {
         isLoading = true;
         errorMessage = null;
-        _chartNeedsRender = false;
-        try
-        {
-            summary = await Mediator.Send(new GetSalesSummaryQuery { From = fromDate, To = toDate });
-            _chartNeedsRender = true;
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Error cargando datos: {ex.Message}";
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        StateHasChanged();
+        try { summary = await Mediator.Send(new GetSalesSummaryQuery { From = fromDate, To = toDate }); }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isLoading = false; StateHasChanged(); }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private async Task RenderChart()
     {
-        if (_chartNeedsRender && summary is not null)
+        if (summary is null) return;
+        try
         {
-            _chartNeedsRender = false;
-            var labels = new[] { "Ingresos", "Ganancia Neta", "Gastos", "Propinas" };
-            var data   = new[] {
-                (double)summary.TotalRevenue,
-                (double)summary.NetProfit,
-                (double)summary.TotalExpenses,
-                (double)summary.TotalTips
-            };
-            await JS.InvokeVoidAsync("renderBarChart", "financialChart", labels, data, "€");
+            var labels = summary.RevenueByPaymentMethod.Keys.ToArray();
+            var values = summary.RevenueByPaymentMethod.Values.Select(v => (double)v).ToArray();
+            await JS.InvokeVoidAsync("renderPaymentChart", "paymentChart", labels, values);
         }
+        catch { }
     }
 }

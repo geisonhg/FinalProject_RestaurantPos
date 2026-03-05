@@ -2,24 +2,19 @@
 @inject NavigationManager Nav
 
 <div class="app-layout @(sidebarCollapsed ? "sidebar-collapsed" : "")">
-
     <aside class="app-sidebar">
         <NavMenu />
     </aside>
-
     <div class="app-main">
-
         <header class="app-topbar">
             <button class="topbar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
-                <svg viewBox="0 0 24 24">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="3" y1="6"  x2="21" y2="6"  />
                     <line x1="3" y1="12" x2="21" y2="12" />
                     <line x1="3" y1="18" x2="21" y2="18" />
                 </svg>
             </button>
-
             <div class="topbar-breadcrumb">@GetPageTitle()</div>
-
             <div class="topbar-right">
                 <AuthorizeView>
                     <Authorized>
@@ -33,11 +28,9 @@
                 </AuthorizeView>
             </div>
         </header>
-
         <main class="app-content">
             @Body
         </main>
-
     </div>
 </div>
 
@@ -46,9 +39,189 @@
     <a class="dismiss">✕</a>
 </div>
 
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        background: #0f1117;
+        color: #e2e8f0;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        overflow: hidden;
+    }
+
+    .app-layout {
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+    }
+
+    /* ── Sidebar ── */
+    .app-sidebar {
+        width: 240px;
+        background: #131720;
+        border-right: 1px solid #1e2433;
+        display: flex;
+        flex-direction: column;
+        transition: width 0.25s ease;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    .sidebar-collapsed .app-sidebar {
+        width: 0;
+    }
+
+    /* ── Main area ── */
+    .app-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* ── Topbar ── */
+    .app-topbar {
+        height: 56px;
+        background: #131720;
+        border-bottom: 1px solid #1e2433;
+        display: flex;
+        align-items: center;
+        padding: 0 1.25rem;
+        gap: 1rem;
+        flex-shrink: 0;
+    }
+
+    .topbar-toggle {
+        background: none;
+        border: none;
+        color: #64748b;
+        cursor: pointer;
+        padding: 0.4rem;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        transition: color 0.2s, background 0.2s;
+    }
+
+    .topbar-toggle:hover { color: #e2e8f0; background: #1e2433; }
+
+    .topbar-breadcrumb {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #f8fafc;
+        flex: 1;
+    }
+
+    .topbar-right { display: flex; align-items: center; gap: 1rem; }
+
+    .topbar-user { display: flex; align-items: center; gap: 0.6rem; }
+
+    .topbar-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #3b82f6;
+        color: white;
+        font-weight: 700;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .topbar-username { font-size: 0.85rem; color: #94a3b8; }
+
+    /* ── Content ── */
+    .app-content {
+        flex: 1;
+        overflow-y: auto;
+        background: #0f1117;
+    }
+
+    /* ── NavMenu overrides ── */
+    .navbar-toggler { display: none; }
+
+    .top-row {
+        background: transparent !important;
+        border-bottom: 1px solid #1e2433;
+        padding: 1rem 1.25rem !important;
+    }
+
+    .navbar-brand {
+        color: #f8fafc !important;
+        font-weight: 700;
+        font-size: 1rem;
+        text-decoration: none;
+    }
+
+    .nav-scrollable {
+        padding: 0.75rem 0;
+    }
+
+    .nav-item { width: 100%; }
+
+    .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.65rem 1.25rem !important;
+        color: #64748b !important;
+        text-decoration: none;
+        font-size: 0.9rem;
+        border-radius: 0;
+        transition: color 0.2s, background 0.2s;
+        border-left: 3px solid transparent;
+    }
+
+    .nav-link:hover {
+        color: #e2e8f0 !important;
+        background: #1e2433;
+    }
+
+    .nav-link.active {
+        color: #f8fafc !important;
+        background: #1a2540;
+        border-left-color: #3b82f6;
+    }
+
+    .nav-section-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #334155;
+        padding: 1rem 1.25rem 0.25rem;
+    }
+
+    .nav-logout {
+        background: none;
+        border: none;
+        cursor: pointer;
+        width: 100%;
+        text-align: left;
+        font-family: inherit;
+    }
+
+    /* ── Error UI ── */
+    #blazor-error-ui {
+        display: none;
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        background: #2d1515;
+        border: 1px solid #ef4444;
+        color: #fca5a5;
+        padding: 0.75rem 1.25rem;
+        border-radius: 10px;
+        z-index: 999;
+        font-size: 0.9rem;
+    }
+
+    #blazor-error-ui .reload { color: #60a5fa; margin-left: 0.5rem; }
+    #blazor-error-ui .dismiss { float: right; cursor: pointer; margin-left: 1rem; }
+</style>
+
 @code {
     private bool sidebarCollapsed = false;
-
     private void ToggleSidebar() => sidebarCollapsed = !sidebarCollapsed;
 
     private string GetPageTitle()
