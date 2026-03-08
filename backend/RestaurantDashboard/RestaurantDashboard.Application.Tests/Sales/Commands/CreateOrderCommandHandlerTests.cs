@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MediatR;
 using Moq;
 using RestaurantDashboard.Application.Common.Exceptions;
 using RestaurantDashboard.Application.Sales.Commands.CreateOrder;
@@ -13,9 +14,10 @@ public sealed class CreateOrderCommandHandlerTests
     private readonly Mock<IOrderRepository> _ordersMock = new();
     private readonly Mock<IEmployeeRepository> _employeesMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly Mock<IPublisher> _publisherMock = new();
 
     private CreateOrderCommandHandler CreateSut() =>
-        new(_ordersMock.Object, _employeesMock.Object, _uowMock.Object);
+        new(_ordersMock.Object, _employeesMock.Object, _uowMock.Object, _publisherMock.Object);
 
     [Fact]
     public async Task Handle_ActiveEmployee_CreatesOrderAndReturnsDto()

@@ -12,9 +12,10 @@ public sealed class VoidOrderCommandHandlerTests
 {
     private readonly Mock<IOrderRepository> _ordersMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly Mock<IPublisher> _publisherMock = new();
 
     private VoidOrderCommandHandler CreateSut() =>
-        new(_ordersMock.Object, _uowMock.Object);
+        new(_ordersMock.Object, _uowMock.Object, _publisherMock.Object);
 
     [Fact]
     public async Task Handle_OpenOrder_VoidsOrderAndReturnsUnit()

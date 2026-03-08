@@ -1,3 +1,4 @@
+using MediatR;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ using RestaurantDashboard.Infrastructure.Persistence.Seeders;
 using RestaurantDashboard.Web.Components;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using RestaurantDashboard.Web.Components.Account;
+using RestaurantDashboard.Web.Hubs;
 using RestaurantDashboard.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -52,6 +54,16 @@ builder.Services.AddScoped<AuthenticationStateProvider,
     IdentityRevalidatingAuthenticationStateProvider>();
 
 builder.Services.AddApplication();
+
+// SignalR + real-time order notifications
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<OrderNotifier>();
+
+// Register MediatR notification handlers defined in the Web assembly
+// (OrderChangedEventHandler handles OrderOpenedEvent, OrderClosedEvent, OrderVoidedEvent)
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<DashboardStateService>();
 
@@ -83,6 +95,9 @@ app.MapRazorComponents<App>()
 
 // Wire up Blazor Identity endpoint routes (logout, external login, etc.)
 app.MapAdditionalIdentityEndpoints();
+
+// SignalR hub endpoint
+app.MapHub<OrderHub>("/hubs/orders");
 
 // Seed database on startup
 await using (var scope = app.Services.CreateAsyncScope())

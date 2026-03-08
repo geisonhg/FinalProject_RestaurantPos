@@ -9,11 +9,13 @@ public sealed class VoidOrderCommandHandler : IRequestHandler<VoidOrderCommand, 
 {
     private readonly IOrderRepository _orders;
     private readonly IUnitOfWork _uow;
+    private readonly IPublisher _publisher;
 
-    public VoidOrderCommandHandler(IOrderRepository orders, IUnitOfWork uow)
+    public VoidOrderCommandHandler(IOrderRepository orders, IUnitOfWork uow, IPublisher publisher)
     {
         _orders = orders;
         _uow = uow;
+        _publisher = publisher;
     }
 
     public async Task<Unit> Handle(VoidOrderCommand request, CancellationToken cancellationToken)
@@ -24,6 +26,11 @@ public sealed class VoidOrderCommandHandler : IRequestHandler<VoidOrderCommand, 
         order.Void(request.Reason);
         _orders.Update(order);
         await _uow.CommitAsync(cancellationToken);
+
+        foreach (var domainEvent in order.DomainEvents)
+            await _publisher.Publish(domainEvent, cancellationToken);
+
+        order.ClearDomainEvents();
         return Unit.Value;
     }
 }

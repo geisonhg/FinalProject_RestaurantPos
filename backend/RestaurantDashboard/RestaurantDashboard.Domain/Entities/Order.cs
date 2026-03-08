@@ -89,5 +89,6 @@ public sealed class Order : AggregateRoot
         Guard.AgainstNullOrEmpty(reason, nameof(reason));
         Status = OrderStatus.Voided;
         ClosedAt = DateTime.UtcNow;
+        Raise(new OrderVoidedEvent(Id));
     }
 }

@@ -11,15 +11,18 @@ public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderComma
     private readonly IOrderRepository _orders;
     private readonly IEmployeeRepository _employees;
     private readonly IUnitOfWork _uow;
+    private readonly IPublisher _publisher;
 
     public CreateOrderCommandHandler(
         IOrderRepository orders,
         IEmployeeRepository employees,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IPublisher publisher)
     {
         _orders = orders;
         _employees = employees;
         _uow = uow;
+        _publisher = publisher;
     }
 
     public async Task<OrderDto> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -33,6 +36,11 @@ public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderComma
         var order = Order.Open(request.TableNumber, request.EmployeeId, request.Notes);
         await _orders.AddAsync(order, cancellationToken);
         await _uow.CommitAsync(cancellationToken);
+
+        foreach (var domainEvent in order.DomainEvents)
+            await _publisher.Publish(domainEvent, cancellationToken);
+
+        order.ClearDomainEvents();
 
         return new OrderDto
         {

@@ -1,11 +1,14 @@
 @page "/orders"
 @attribute [Authorize(Policy = "AllStaff")]
+@implements IDisposable
 @using MediatR
 @using RestaurantDashboard.Application.Sales.Queries.GetOpenOrders
 @using RestaurantDashboard.Application.Sales.Commands.CloseOrder
 @using RestaurantDashboard.Application.Sales.Commands.VoidOrder
 @using RestaurantDashboard.Application.Sales.Dtos
+@using RestaurantDashboard.Web.Services
 @inject IMediator Mediator
+@inject OrderNotifier OrderNotifier
 
 <PageTitle>Órdenes</PageTitle>
 
@@ -14,6 +17,10 @@
         <div>
             <h1 class="ord-title">Órdenes Abiertas</h1>
             <p class="ord-subtitle">Gestión de mesas en tiempo real</p>
+        </div>
+        <div class="ord-realtime">
+            <span class="ord-realtime__dot"></span>
+            <span class="ord-realtime__label">En vivo</span>
         </div>
         <button class="ord-btn ord-btn--refresh" @onclick="LoadOrders">↻ Actualizar</button>
     </div>
@@ -113,6 +120,10 @@
     .ord-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .ord-title { font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0; }
     .ord-subtitle { color: #64748b; margin: 0.25rem 0 0; }
+    .ord-realtime { display: flex; align-items: center; gap: 0.4rem; }
+    .ord-realtime__dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; animation: livePulse 2s ease-in-out infinite; }
+    .ord-realtime__label { font-size: 0.75rem; color: #10b981; font-weight: 600; letter-spacing: 0.04em; }
+    @@keyframes livePulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
     .ord-btn { padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
     .ord-btn--refresh { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; }
     .ord-btn--refresh:hover { background: #2d3748; }
@@ -164,7 +175,20 @@
     private string? actionMessage;
     private bool actionSuccess = true;
 
-    protected override async Task OnInitializedAsync() => await LoadOrders();
+    protected override async Task OnInitializedAsync()
+    {
+        OrderNotifier.OnChange += OnOrderChanged;
+        await LoadOrders();
+    }
+
+    private void OnOrderChanged() =>
+        InvokeAsync(async () =>
+        {
+            await LoadOrders();
+            StateHasChanged();
+        });
+
+    public void Dispose() => OrderNotifier.OnChange -= OnOrderChanged;
 
     private async Task LoadOrders()
     {
