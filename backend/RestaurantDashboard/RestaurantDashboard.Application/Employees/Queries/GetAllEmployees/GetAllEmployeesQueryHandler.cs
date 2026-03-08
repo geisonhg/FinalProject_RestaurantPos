@@ -16,7 +16,7 @@ public sealed class GetAllEmployeesQueryHandler
         GetAllEmployeesQuery request,
         CancellationToken cancellationToken)
     {
-        var employees = await _employees.GetAllActiveAsync(cancellationToken);
+        var employees = await _employees.GetAllActiveWithShiftsAsync(cancellationToken);
 
         return employees.Select(e => new EmployeeDto
         {
@@ -26,7 +26,8 @@ public sealed class GetAllEmployeesQueryHandler
             FullName = e.FullName,
             Role = e.Role.ToString(),
             HireDate = e.HireDate,
-            IsActive = e.IsActive
+            IsActive = e.IsActive,
+            ActiveShiftId = e.Shifts.FirstOrDefault(s => s.Status == Domain.Enums.ShiftStatus.Active)?.Id
         }).ToList();
     }
 }

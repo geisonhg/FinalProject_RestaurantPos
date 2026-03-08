@@ -1,0 +1,332 @@
+@page "/expenses"
+@attribute [Authorize(Policy = "ManagerPlus")]
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using RestaurantDashboard.Application.Employees.Queries.GetAllEmployees
+@using RestaurantDashboard.Application.Employees.Dtos
+@using RestaurantDashboard.Application.Expenses.Commands.ApproveExpense
+@using RestaurantDashboard.Application.Expenses.Commands.RecordExpense
+@using RestaurantDashboard.Application.Expenses.Dtos
+@using RestaurantDashboard.Application.Expenses.Queries.GetExpenses
+@using RestaurantDashboard.Domain.Enums
+@using RestaurantDashboard.Infrastructure.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthProvider
+
+<PageTitle>Gastos</PageTitle>
+
+<div class="ex-page">
+    <div class="ex-header">
+        <div>
+            <h1 class="ex-title">Gastos</h1>
+            <p class="ex-subtitle">Registro y aprobación de gastos operativos</p>
+        </div>
+        <button class="ex-btn ex-btn--add" @onclick="OpenRecordForm">+ Registrar Gasto</button>
+    </div>
+
+    @* ── Filters ── *@
+    <div class="ex-filters">
+        <div class="ex-filter-group">
+            <label class="ex-label">Desde</label>
+            <input class="ex-input" type="date" @bind="filterFrom" />
+        </div>
+        <div class="ex-filter-group">
+            <label class="ex-label">Hasta</label>
+            <input class="ex-input" type="date" @bind="filterTo" />
+        </div>
+        <button class="ex-btn ex-btn--filter" @onclick="LoadExpenses">Filtrar</button>
+    </div>
+
+    @* ── Summary chips ── *@
+    @if (expenses is not null)
+    {
+        <div class="ex-summary">
+            <div class="ex-chip">
+                <span class="ex-chip__label">Total</span>
+                <span class="ex-chip__value">@expenses.Sum(e => e.Amount).ToString("C")</span>
+            </div>
+            <div class="ex-chip ex-chip--pending">
+                <span class="ex-chip__label">Pendientes</span>
+                <span class="ex-chip__value">@expenses.Count(e => !e.IsApproved)</span>
+            </div>
+            <div class="ex-chip ex-chip--approved">
+                <span class="ex-chip__label">Aprobados</span>
+                <span class="ex-chip__value">@expenses.Count(e => e.IsApproved)</span>
+            </div>
+        </div>
+    }
+
+    @* ── Table ── *@
+    @if (isLoading)
+    {
+        <div class="ex-loading"><div class="ex-spinner"></div><span>Cargando gastos...</span></div>
+    }
+    else if (expenses is null || !expenses.Any())
+    {
+        <div class="ex-empty">No hay gastos en el período seleccionado.</div>
+    }
+    else
+    {
+        <div class="ex-table-wrap">
+            <table class="ex-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Categoría</th>
+                        <th>Descripción</th>
+                        <th class="ex-right">Monto</th>
+                        <th>Estado</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in expenses.OrderByDescending(x => x.Date))
+                    {
+                        <tr>
+                            <td>@e.Date.ToString("dd/MM/yyyy")</td>
+                            <td><span class="ex-category">@e.Category</span></td>
+                            <td class="ex-desc">@e.Description</td>
+                            <td class="ex-right ex-amount">@e.Amount.ToString("C")</td>
+                            <td>
+                                @if (e.IsApproved)
+                                {
+                                    <span class="ex-badge ex-badge--approved">Aprobado</span>
+                                }
+                                else
+                                {
+                                    <span class="ex-badge ex-badge--pending">Pendiente</span>
+                                }
+                            </td>
+                            <td>
+                                @if (!e.IsApproved)
+                                {
+                                    <button class="ex-btn ex-btn--approve" @onclick="() => ApproveExpense(e.Id)"
+                                        disabled="@approving">
+                                        @(approving && approvingId == e.Id ? "..." : "Aprobar")
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span class="ex-approved-mark">✓</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@* ── Record Expense Modal ── *@
+@if (showForm)
+{
+    <div class="ex-modal-backdrop" @onclick="CloseForm">
+        <div class="ex-modal" @onclick:stopPropagation>
+            <h2 class="ex-modal__title">Registrar Gasto</h2>
+
+            <div class="ex-form">
+                <label class="ex-label">Categoría</label>
+                <select class="ex-input" @bind="formCategory">
+                    @foreach (var cat in Enum.GetValues<ExpenseCategory>())
+                    {
+                        <option value="@cat">@cat</option>
+                    }
+                </select>
+
+                <label class="ex-label">Monto (€)</label>
+                <input class="ex-input" type="number" step="0.01" min="0.01" @bind="formAmount" />
+
+                <label class="ex-label">Fecha</label>
+                <input class="ex-input" type="date" @bind="formDate" />
+
+                <label class="ex-label">Descripción</label>
+                <textarea class="ex-input ex-textarea" @bind="formDescription" rows="3"
+                    placeholder="Descripción del gasto..."></textarea>
+
+                <label class="ex-label">URL de Recibo (opcional)</label>
+                <input class="ex-input" type="text" @bind="formReceiptUrl"
+                    placeholder="https://..." />
+
+                @if (formError is not null)
+                {
+                    <div class="ex-form-error">@formError</div>
+                }
+
+                <div class="ex-form-actions">
+                    <button class="ex-btn ex-btn--cancel" @onclick="CloseForm">Cancelar</button>
+                    <button class="ex-btn ex-btn--save" @onclick="SaveExpense" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .ex-page { padding: 2rem; background: #0f1117; min-height: 100vh; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+    .ex-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .ex-title { font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0; }
+    .ex-subtitle { color: #64748b; margin: 0.25rem 0 0; }
+
+    .ex-filters { display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .ex-filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+    .ex-label { font-size: 0.8rem; color: #94a3b8; }
+    .ex-input { background: #1e2433; border: 1px solid #2d3748; color: #e2e8f0; padding: 0.6rem 0.9rem; border-radius: 8px; font-size: 0.9rem; }
+    .ex-input:focus { outline: none; border-color: #3b82f6; }
+    .ex-textarea { resize: vertical; font-family: inherit; }
+
+    .ex-summary { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .ex-chip { background: #1e2433; border: 1px solid #2d3748; border-radius: 12px; padding: 0.75rem 1.25rem; display: flex; flex-direction: column; gap: 0.2rem; min-width: 130px; }
+    .ex-chip--pending { border-color: #f59e0b33; }
+    .ex-chip--approved { border-color: #10b98133; }
+    .ex-chip__label { font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .ex-chip__value { font-size: 1.4rem; font-weight: 700; color: #f8fafc; }
+    .ex-chip--pending .ex-chip__value { color: #f59e0b; }
+    .ex-chip--approved .ex-chip__value { color: #10b981; }
+
+    .ex-btn { padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; }
+    .ex-btn--add { background: #3b82f6; color: white; }
+    .ex-btn--add:hover { background: #2563eb; }
+    .ex-btn--filter { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; align-self: flex-end; }
+    .ex-btn--filter:hover { border-color: #3b82f6; color: #3b82f6; }
+    .ex-btn--approve { background: #064e3b; color: #10b981; border: 1px solid #10b98144; font-size: 0.8rem; padding: 0.35rem 0.85rem; }
+    .ex-btn--approve:hover:not(:disabled) { background: #065f46; }
+    .ex-btn--save { background: #10b981; color: white; }
+    .ex-btn--save:hover:not(:disabled) { background: #059669; }
+    .ex-btn--cancel { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; }
+    .ex-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .ex-table-wrap { overflow-x: auto; }
+    .ex-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .ex-table th { text-align: left; padding: 0.75rem 1rem; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1e2433; }
+    .ex-table td { padding: 0.85rem 1rem; border-bottom: 1px solid #1a1f2e; color: #e2e8f0; }
+    .ex-table tr:hover td { background: #131825; }
+    .ex-right { text-align: right; }
+    .ex-amount { font-weight: 600; color: #f8fafc; }
+    .ex-desc { color: #94a3b8; max-width: 280px; }
+    .ex-category { background: #1a2035; border: 1px solid #2d3748; border-radius: 20px; padding: 0.2rem 0.7rem; font-size: 0.78rem; color: #94a3b8; }
+    .ex-badge { font-size: 0.75rem; padding: 0.25rem 0.7rem; border-radius: 20px; font-weight: 600; }
+    .ex-badge--approved { background: #064e3b; color: #10b981; }
+    .ex-badge--pending { background: #451a03; color: #f59e0b; }
+    .ex-approved-mark { color: #10b981; font-size: 1.1rem; }
+    .ex-loading { display: flex; align-items: center; gap: 1rem; padding: 3rem; color: #64748b; }
+    .ex-spinner { width: 28px; height: 28px; border: 3px solid #2d3748; border-top-color: #3b82f6; border-radius: 50%; animation: ex-spin 0.8s linear infinite; }
+    @@keyframes ex-spin { to { transform: rotate(360deg); } }
+    .ex-empty { text-align: center; padding: 3rem; color: #64748b; }
+
+    .ex-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .ex-modal { background: #1e2433; border: 1px solid #2d3748; border-radius: 16px; padding: 2rem; width: 100%; max-width: 460px; }
+    .ex-modal__title { font-size: 1.3rem; font-weight: 700; color: #f8fafc; margin: 0 0 1.5rem; }
+    .ex-form { display: flex; flex-direction: column; gap: 0.75rem; }
+    .ex-form-error { background: #2d1515; border: 1px solid #ef4444; color: #fca5a5; padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; }
+    .ex-form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem; }
+</style>
+
+@code {
+    private IReadOnlyList<ExpenseDto>? expenses;
+    private bool isLoading = true;
+    private bool approving = false;
+    private Guid approvingId;
+
+    private DateOnly filterFrom = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
+    private DateOnly filterTo = DateOnly.FromDateTime(DateTime.Today);
+
+    // Form state
+    private bool showForm = false;
+    private bool isSaving = false;
+    private ExpenseCategory formCategory = ExpenseCategory.Food;
+    private decimal formAmount = 0;
+    private DateOnly formDate = DateOnly.FromDateTime(DateTime.Today);
+    private string formDescription = "";
+    private string formReceiptUrl = "";
+    private string? formError;
+
+    private Guid? _currentEmployeeId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ResolveEmployeeIdAsync();
+        await LoadExpenses();
+    }
+
+    private async Task ResolveEmployeeIdAsync()
+    {
+        try
+        {
+            var auth = await AuthProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(auth.User);
+            if (user?.EmployeeId is not null)
+            {
+                _currentEmployeeId = user.EmployeeId;
+                return;
+            }
+
+            var all = await Mediator.Send(new GetAllEmployeesQuery());
+            _currentEmployeeId = all.FirstOrDefault(e => e.IsActive)?.Id;
+        }
+        catch { }
+    }
+
+    private async Task LoadExpenses()
+    {
+        isLoading = true;
+        try { expenses = await Mediator.Send(new GetExpensesQuery { From = filterFrom, To = filterTo }); }
+        catch { expenses = []; }
+        finally { isLoading = false; }
+    }
+
+    private void OpenRecordForm()
+    {
+        formCategory = ExpenseCategory.Food;
+        formAmount = 0;
+        formDate = DateOnly.FromDateTime(DateTime.Today);
+        formDescription = "";
+        formReceiptUrl = "";
+        formError = null;
+        showForm = true;
+    }
+
+    private void CloseForm() { showForm = false; formError = null; }
+
+    private async Task SaveExpense()
+    {
+        if (string.IsNullOrWhiteSpace(formDescription)) { formError = "La descripción es requerida."; return; }
+        if (formAmount <= 0) { formError = "El monto debe ser mayor a 0."; return; }
+        if (_currentEmployeeId is null) { formError = "No se pudo resolver el empleado actual."; return; }
+
+        isSaving = true;
+        formError = null;
+        try
+        {
+            await Mediator.Send(new RecordExpenseCommand
+            {
+                Category = formCategory,
+                Amount = formAmount,
+                Date = formDate,
+                Description = formDescription,
+                RecordedByEmployeeId = _currentEmployeeId.Value,
+                ReceiptUrl = string.IsNullOrWhiteSpace(formReceiptUrl) ? null : formReceiptUrl
+            });
+            await LoadExpenses();
+            CloseForm();
+        }
+        catch (Exception ex) { formError = $"Error: {ex.Message}"; }
+        finally { isSaving = false; }
+    }
+
+    private async Task ApproveExpense(Guid expenseId)
+    {
+        approving = true;
+        approvingId = expenseId;
+        try
+        {
+            await Mediator.Send(new ApproveExpenseCommand { ExpenseId = expenseId });
+            await LoadExpenses();
+        }
+        catch { }
+        finally { approving = false; }
+    }
+}

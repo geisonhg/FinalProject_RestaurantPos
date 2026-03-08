@@ -28,6 +28,14 @@ public sealed class EmployeeRepository : IEmployeeRepository
             .ThenBy(e => e.FirstName)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Employee>> GetAllActiveWithShiftsAsync(CancellationToken ct) =>
+        await _context.Employees
+            .Include(e => e.Shifts)
+            .Where(e => e.IsActive)
+            .OrderBy(e => e.LastName)
+            .ThenBy(e => e.FirstName)
+            .ToListAsync(ct);
+
     public async Task AddAsync(Employee employee, CancellationToken ct) =>
         await _context.Employees.AddAsync(employee, ct);
 

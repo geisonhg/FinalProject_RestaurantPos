@@ -27,6 +27,22 @@
             </svg>
             Menú
         </NavLink>
+        <AuthorizeView Policy="ManagerPlus">
+            <NavLink class="sidenav-link" href="/expenses">
+                <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="2" y="5" width="20" height="14" rx="2"/>
+                    <line x1="2" y1="10" x2="22" y2="10"/>
+                </svg>
+                Gastos
+            </NavLink>
+            <NavLink class="sidenav-link" href="/staff">
+                <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/>
+                    <path d="M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.87"/>
+                </svg>
+                Personal
+            </NavLink>
+        </AuthorizeView>
         <AuthorizeView Policy="CanGenerateReports">
             <NavLink class="sidenav-link" href="/reports">
                 <svg class="sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

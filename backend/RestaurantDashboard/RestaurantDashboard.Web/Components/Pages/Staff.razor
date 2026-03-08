@@ -1,0 +1,443 @@
+@page "/staff"
+@attribute [Authorize(Policy = "ManagerPlus")]
+@using MediatR
+@using RestaurantDashboard.Application.Employees.Commands.ClockIn
+@using RestaurantDashboard.Application.Employees.Commands.ClockOut
+@using RestaurantDashboard.Application.Employees.Commands.CreateEmployee
+@using RestaurantDashboard.Application.Employees.Commands.UpdateEmployee
+@using RestaurantDashboard.Application.Employees.Dtos
+@using RestaurantDashboard.Application.Employees.Queries.GetAllEmployees
+@using RestaurantDashboard.Application.Employees.Queries.GetEmployeePerformance
+@using RestaurantDashboard.Domain.Enums
+@inject IMediator Mediator
+
+<PageTitle>Personal</PageTitle>
+
+<div class="st-page">
+    <div class="st-header">
+        <div>
+            <h1 class="st-title">Personal</h1>
+            <p class="st-subtitle">Gestión de empleados y seguimiento de turnos</p>
+        </div>
+        <button class="st-btn st-btn--add" @onclick="OpenCreateForm">+ Nuevo Empleado</button>
+    </div>
+
+    @* ── Performance section ── *@
+    <div class="st-perf-header">
+        <span class="st-section-label">Rendimiento del período</span>
+        <div class="st-perf-filters">
+            <input class="st-input" type="date" @bind="perfFrom" />
+            <input class="st-input" type="date" @bind="perfTo" />
+            <button class="st-btn st-btn--filter" @onclick="LoadPerformance">Ver</button>
+        </div>
+    </div>
+
+    @if (performance is not null && performance.Any())
+    {
+        <div class="st-perf-grid">
+            @foreach (var p in performance)
+            {
+                <div class="st-perf-card">
+                    <div class="st-perf-card__name">@p.FullName</div>
+                    <div class="st-perf-card__role">@p.Role</div>
+                    <div class="st-perf-stats">
+                        <div class="st-stat">
+                            <span class="st-stat__val">@p.TotalShifts</span>
+                            <span class="st-stat__lbl">Turnos</span>
+                        </div>
+                        <div class="st-stat">
+                            <span class="st-stat__val">@p.TotalHoursWorked.ToString("F1")h</span>
+                            <span class="st-stat__lbl">Horas</span>
+                        </div>
+                        <div class="st-stat">
+                            <span class="st-stat__val">@p.TotalTipsEarned.ToString("C")</span>
+                            <span class="st-stat__lbl">Propinas</span>
+                        </div>
+                        <div class="st-stat">
+                            <span class="st-stat__val">@p.TotalSalesAmount.ToString("C")</span>
+                            <span class="st-stat__lbl">Ventas</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (!isPerfLoading)
+    {
+        <div class="st-perf-empty">Sin datos de rendimiento para el período.</div>
+    }
+
+    @* ── Employee table ── *@
+    <div class="st-section-label" style="margin-top:2rem;">Empleados activos</div>
+
+    @if (isLoading)
+    {
+        <div class="st-loading"><div class="st-spinner"></div><span>Cargando personal...</span></div>
+    }
+    else if (employees is null || !employees.Any())
+    {
+        <div class="st-empty">No hay empleados activos.</div>
+    }
+    else
+    {
+        <div class="st-table-wrap">
+            <table class="st-table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Rol</th>
+                        <th>Ingreso</th>
+                        <th>Turno</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var emp in employees)
+                    {
+                        <tr>
+                            <td class="st-name">@emp.FullName</td>
+                            <td><span class="st-role">@emp.Role</span></td>
+                            <td>@emp.HireDate.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                @if (emp.ActiveShiftId.HasValue)
+                                {
+                                    <span class="st-shift-badge st-shift-badge--active">En turno</span>
+                                }
+                                else
+                                {
+                                    <span class="st-shift-badge st-shift-badge--off">Sin turno</span>
+                                }
+                            </td>
+                            <td class="st-actions">
+                                @if (!emp.ActiveShiftId.HasValue)
+                                {
+                                    <button class="st-btn st-btn--clockin" @onclick="() => ClockIn(emp.Id)"
+                                        disabled="@(actionEmployeeId == emp.Id)">
+                                        @(actionEmployeeId == emp.Id ? "..." : "Entrada")
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="st-btn st-btn--clockout" @onclick="() => OpenClockOutModal(emp)"
+                                        disabled="@(actionEmployeeId == emp.Id)">
+                                        @(actionEmployeeId == emp.Id ? "..." : "Salida")
+                                    </button>
+                                }
+                                <button class="st-btn st-btn--edit" @onclick="() => OpenEditForm(emp)">Editar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (actionError is not null)
+    {
+        <div class="st-action-error">@actionError</div>
+    }
+</div>
+
+@* ── Create / Edit Employee Modal ── *@
+@if (showForm)
+{
+    <div class="st-modal-backdrop" @onclick="CloseForm">
+        <div class="st-modal" @onclick:stopPropagation>
+            <h2 class="st-modal__title">@(isEditing ? "Editar Empleado" : "Nuevo Empleado")</h2>
+
+            <div class="st-form">
+                <label class="st-label">Nombre</label>
+                <input class="st-input" @bind="formFirstName" placeholder="Nombre" />
+
+                <label class="st-label">Apellido</label>
+                <input class="st-input" @bind="formLastName" placeholder="Apellido" />
+
+                <label class="st-label">Rol</label>
+                <select class="st-input" @bind="formRole">
+                    @foreach (var role in Enum.GetValues<EmployeeRole>())
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+
+                @if (!isEditing)
+                {
+                    <label class="st-label">Fecha de ingreso</label>
+                    <input class="st-input" type="date" @bind="formHireDate" />
+                }
+                else
+                {
+                    <label class="st-checkbox-label">
+                        <input type="checkbox" @bind="formIsActive" /> Empleado activo
+                    </label>
+                }
+
+                @if (formError is not null)
+                {
+                    <div class="st-form-error">@formError</div>
+                }
+
+                <div class="st-form-actions">
+                    <button class="st-btn st-btn--cancel" @onclick="CloseForm">Cancelar</button>
+                    <button class="st-btn st-btn--save" @onclick="SaveEmployee" disabled="@isSaving">
+                        @(isSaving ? "Guardando..." : "Guardar")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Clock Out Modal ── *@
+@if (showClockOutModal && clockOutEmployee is not null)
+{
+    <div class="st-modal-backdrop" @onclick="CloseClockOutModal">
+        <div class="st-modal" @onclick:stopPropagation>
+            <h2 class="st-modal__title">Registrar Salida</h2>
+            <p class="st-modal__sub">@clockOutEmployee.FullName</p>
+
+            <div class="st-form">
+                <label class="st-label">Propinas ganadas (€)</label>
+                <input class="st-input" type="number" step="0.01" min="0" @bind="clockOutTips" />
+
+                @if (formError is not null)
+                {
+                    <div class="st-form-error">@formError</div>
+                }
+
+                <div class="st-form-actions">
+                    <button class="st-btn st-btn--cancel" @onclick="CloseClockOutModal">Cancelar</button>
+                    <button class="st-btn st-btn--save" @onclick="ConfirmClockOut" disabled="@isSaving">
+                        @(isSaving ? "Registrando..." : "Confirmar Salida")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .st-page { padding: 2rem; background: #0f1117; min-height: 100vh; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+    .st-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .st-title { font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0; }
+    .st-subtitle { color: #64748b; margin: 0.25rem 0 0; }
+    .st-section-label { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; font-weight: 700; margin-bottom: 0.75rem; }
+
+    .st-perf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
+    .st-perf-filters { display: flex; gap: 0.5rem; align-items: center; }
+    .st-input { background: #1e2433; border: 1px solid #2d3748; color: #e2e8f0; padding: 0.6rem 0.9rem; border-radius: 8px; font-size: 0.875rem; }
+    .st-input:focus { outline: none; border-color: #3b82f6; }
+    .st-label { font-size: 0.8rem; color: #94a3b8; }
+
+    .st-perf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .st-perf-card { background: #1e2433; border: 1px solid #2d3748; border-radius: 14px; padding: 1.25rem; }
+    .st-perf-card__name { font-size: 1rem; font-weight: 600; color: #f8fafc; margin-bottom: 0.2rem; }
+    .st-perf-card__role { font-size: 0.78rem; color: #64748b; margin-bottom: 1rem; }
+    .st-perf-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .st-stat { display: flex; flex-direction: column; }
+    .st-stat__val { font-size: 1.1rem; font-weight: 700; color: #3b82f6; }
+    .st-stat__lbl { font-size: 0.7rem; color: #64748b; }
+    .st-perf-empty { color: #475569; font-size: 0.9rem; margin-bottom: 1.5rem; }
+
+    .st-btn { padding: 0.55rem 1.1rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; }
+    .st-btn--add { background: #3b82f6; color: white; }
+    .st-btn--add:hover { background: #2563eb; }
+    .st-btn--filter { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; }
+    .st-btn--filter:hover { border-color: #3b82f6; color: #3b82f6; }
+    .st-btn--clockin { background: #064e3b; color: #10b981; border: 1px solid #10b98133; }
+    .st-btn--clockin:hover:not(:disabled) { background: #065f46; }
+    .st-btn--clockout { background: #7c2d12; color: #fb923c; border: 1px solid #fb923c33; }
+    .st-btn--clockout:hover:not(:disabled) { background: #92400e; }
+    .st-btn--edit { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; }
+    .st-btn--edit:hover { border-color: #3b82f6; color: #3b82f6; }
+    .st-btn--save { background: #10b981; color: white; }
+    .st-btn--save:hover:not(:disabled) { background: #059669; }
+    .st-btn--cancel { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; }
+    .st-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .st-table-wrap { overflow-x: auto; }
+    .st-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .st-table th { text-align: left; padding: 0.75rem 1rem; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1e2433; }
+    .st-table td { padding: 0.85rem 1rem; border-bottom: 1px solid #1a1f2e; color: #e2e8f0; }
+    .st-table tr:hover td { background: #131825; }
+    .st-name { font-weight: 600; color: #f8fafc; }
+    .st-role { background: #1a2035; border: 1px solid #2d3748; border-radius: 20px; padding: 0.2rem 0.7rem; font-size: 0.78rem; color: #94a3b8; }
+    .st-actions { display: flex; gap: 0.5rem; align-items: center; }
+    .st-shift-badge { font-size: 0.75rem; padding: 0.2rem 0.7rem; border-radius: 20px; font-weight: 600; }
+    .st-shift-badge--active { background: #064e3b; color: #10b981; }
+    .st-shift-badge--off { background: #1e2433; color: #475569; }
+
+    .st-loading { display: flex; align-items: center; gap: 1rem; padding: 3rem; color: #64748b; }
+    .st-spinner { width: 28px; height: 28px; border: 3px solid #2d3748; border-top-color: #3b82f6; border-radius: 50%; animation: st-spin 0.8s linear infinite; }
+    @@keyframes st-spin { to { transform: rotate(360deg); } }
+    .st-empty { text-align: center; padding: 3rem; color: #64748b; }
+    .st-action-error { background: #2d1515; border: 1px solid #ef4444; color: #fca5a5; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.85rem; margin-top: 1rem; }
+
+    .st-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .st-modal { background: #1e2433; border: 1px solid #2d3748; border-radius: 16px; padding: 2rem; width: 100%; max-width: 420px; }
+    .st-modal__title { font-size: 1.3rem; font-weight: 700; color: #f8fafc; margin: 0 0 0.25rem; }
+    .st-modal__sub { color: #64748b; font-size: 0.9rem; margin: 0 0 1.5rem; }
+    .st-form { display: flex; flex-direction: column; gap: 0.75rem; }
+    .st-form-error { background: #2d1515; border: 1px solid #ef4444; color: #fca5a5; padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; }
+    .st-form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem; }
+    .st-checkbox-label { display: flex; align-items: center; gap: 0.5rem; color: #94a3b8; font-size: 0.9rem; cursor: pointer; }
+</style>
+
+@code {
+    private IReadOnlyList<EmployeeDto>? employees;
+    private IReadOnlyList<EmployeePerformanceDto>? performance;
+    private bool isLoading = true;
+    private bool isPerfLoading = false;
+    private Guid? actionEmployeeId;
+    private string? actionError;
+
+    private DateOnly perfFrom = DateOnly.FromDateTime(DateTime.Today.AddDays(-7));
+    private DateOnly perfTo = DateOnly.FromDateTime(DateTime.Today);
+
+    // Employee form
+    private bool showForm = false;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private Guid? editingEmployeeId;
+    private string formFirstName = "";
+    private string formLastName = "";
+    private EmployeeRole formRole = EmployeeRole.Waiter;
+    private DateOnly formHireDate = DateOnly.FromDateTime(DateTime.Today);
+    private bool formIsActive = true;
+    private string? formError;
+
+    // Clock out modal
+    private bool showClockOutModal = false;
+    private EmployeeDto? clockOutEmployee;
+    private decimal clockOutTips = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadEmployees(), LoadPerformance());
+    }
+
+    private async Task LoadEmployees()
+    {
+        isLoading = true;
+        try { employees = await Mediator.Send(new GetAllEmployeesQuery()); }
+        catch { employees = []; }
+        finally { isLoading = false; }
+    }
+
+    private async Task LoadPerformance()
+    {
+        isPerfLoading = true;
+        try { performance = await Mediator.Send(new GetEmployeePerformanceQuery { From = perfFrom, To = perfTo }); }
+        catch { performance = []; }
+        finally { isPerfLoading = false; }
+    }
+
+    private async Task ClockIn(Guid employeeId)
+    {
+        actionEmployeeId = employeeId;
+        actionError = null;
+        try
+        {
+            await Mediator.Send(new ClockInCommand { EmployeeId = employeeId });
+            await LoadEmployees();
+        }
+        catch (Exception ex) { actionError = $"Error al registrar entrada: {ex.Message}"; }
+        finally { actionEmployeeId = null; }
+    }
+
+    private void OpenClockOutModal(EmployeeDto emp)
+    {
+        clockOutEmployee = emp;
+        clockOutTips = 0;
+        formError = null;
+        showClockOutModal = true;
+    }
+
+    private void CloseClockOutModal()
+    {
+        showClockOutModal = false;
+        clockOutEmployee = null;
+        formError = null;
+    }
+
+    private async Task ConfirmClockOut()
+    {
+        if (clockOutEmployee?.ActiveShiftId is null) return;
+
+        isSaving = true;
+        formError = null;
+        try
+        {
+            await Mediator.Send(new ClockOutCommand
+            {
+                EmployeeId = clockOutEmployee.Id,
+                ShiftId = clockOutEmployee.ActiveShiftId.Value,
+                TipsEarned = clockOutTips
+            });
+            CloseClockOutModal();
+            await LoadEmployees();
+        }
+        catch (Exception ex) { formError = $"Error: {ex.Message}"; }
+        finally { isSaving = false; }
+    }
+
+    private void OpenCreateForm()
+    {
+        isEditing = false;
+        editingEmployeeId = null;
+        formFirstName = "";
+        formLastName = "";
+        formRole = EmployeeRole.Waiter;
+        formHireDate = DateOnly.FromDateTime(DateTime.Today);
+        formError = null;
+        showForm = true;
+    }
+
+    private void OpenEditForm(EmployeeDto emp)
+    {
+        isEditing = true;
+        editingEmployeeId = emp.Id;
+        formFirstName = emp.FirstName;
+        formLastName = emp.LastName;
+        formRole = Enum.Parse<EmployeeRole>(emp.Role);
+        formIsActive = emp.IsActive;
+        formError = null;
+        showForm = true;
+    }
+
+    private void CloseForm() { showForm = false; formError = null; }
+
+    private async Task SaveEmployee()
+    {
+        if (string.IsNullOrWhiteSpace(formFirstName)) { formError = "El nombre es requerido."; return; }
+        if (string.IsNullOrWhiteSpace(formLastName)) { formError = "El apellido es requerido."; return; }
+
+        isSaving = true;
+        formError = null;
+        try
+        {
+            if (isEditing && editingEmployeeId.HasValue)
+                await Mediator.Send(new UpdateEmployeeCommand
+                {
+                    EmployeeId = editingEmployeeId.Value,
+                    FirstName = formFirstName,
+                    LastName = formLastName,
+                    Role = formRole,
+                    IsActive = formIsActive
+                });
+            else
+                await Mediator.Send(new CreateEmployeeCommand
+                {
+                    FirstName = formFirstName,
+                    LastName = formLastName,
+                    Role = formRole,
+                    HireDate = formHireDate
+                });
+
+            await LoadEmployees();
+            CloseForm();
+        }
+        catch (Exception ex) { formError = $"Error: {ex.Message}"; }
+        finally { isSaving = false; }
+    }
+}

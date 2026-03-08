@@ -8,6 +8,7 @@ public interface IEmployeeRepository
     Task<Employee?> GetByIdWithShiftsAsync(Guid id, CancellationToken ct = default);
     Task<Employee?> GetByUserIdAsync(Guid userId, CancellationToken ct = default);
     Task<IReadOnlyList<Employee>> GetAllActiveAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<Employee>> GetAllActiveWithShiftsAsync(CancellationToken ct = default);
     Task AddAsync(Employee employee, CancellationToken ct = default);
     void Update(Employee employee);
 }

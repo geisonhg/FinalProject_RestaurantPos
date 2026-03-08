@@ -9,4 +9,5 @@ public sealed record EmployeeDto
     public string Role { get; init; } = default!;
     public DateOnly HireDate { get; init; }
     public bool IsActive { get; init; }
+    public Guid? ActiveShiftId { get; init; }
 }
