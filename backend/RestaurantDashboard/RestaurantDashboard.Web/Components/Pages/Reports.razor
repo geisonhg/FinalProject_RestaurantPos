@@ -1,0 +1,370 @@
+@page "/reports"
+@attribute [Authorize(Policy = "CanGenerateReports")]
+@using MediatR
+@using Microsoft.AspNetCore.Identity
+@using RestaurantDashboard.Application.Reports.Queries.GetReports
+@using RestaurantDashboard.Application.Reports.Commands.GenerateWeeklyReport
+@using RestaurantDashboard.Application.Reports.Commands.ImportExpensesFromCsv
+@using RestaurantDashboard.Application.Employees.Queries.GetAllEmployees
+@using RestaurantDashboard.Application.Reports.Dtos
+@using RestaurantDashboard.Domain.Enums
+@using RestaurantDashboard.Infrastructure.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Reportes</PageTitle>
+
+<div class="rpt-page">
+    <div class="rpt-header">
+        <div>
+            <h1 class="rpt-title">Reportes</h1>
+            <p class="rpt-subtitle">Generación de informes PDF e importación de gastos</p>
+        </div>
+    </div>
+
+    <div class="rpt-panels">
+
+        @* ── Generate Report Panel ── *@
+        <div class="rpt-card">
+            <div class="rpt-card__title">
+                <svg class="rpt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
+                Generar Reporte
+            </div>
+
+            <div class="rpt-form">
+                <div class="rpt-row">
+                    <div class="rpt-field">
+                        <label class="rpt-label">Desde</label>
+                        <input class="rpt-input" type="date" @bind="genFrom" />
+                    </div>
+                    <div class="rpt-field">
+                        <label class="rpt-label">Hasta</label>
+                        <input class="rpt-input" type="date" @bind="genTo" />
+                    </div>
+                </div>
+
+                <div class="rpt-field">
+                    <label class="rpt-label">Tipo de Reporte</label>
+                    <div class="rpt-radio-group">
+                        <label class="rpt-radio">
+                            <input type="radio" name="repType" value="Weekly"
+                                   checked="@(genType == ReportType.Weekly)"
+                                   @onchange="() => genType = ReportType.Weekly" />
+                            <span>Semanal</span>
+                        </label>
+                        <label class="rpt-radio">
+                            <input type="radio" name="repType" value="Monthly"
+                                   checked="@(genType == ReportType.Monthly)"
+                                   @onchange="() => genType = ReportType.Monthly" />
+                            <span>Mensual</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button class="rpt-btn rpt-btn--primary" @onclick="GenerateReport" disabled="@isGenerating">
+                    @(isGenerating ? "Generando..." : "⬇ Generar PDF")
+                </button>
+
+                @if (genMessage is not null)
+                {
+                    <div class="rpt-alert rpt-alert--@(genSuccess ? "success" : "error")">
+                        @genMessage
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ── CSV Import Panel ── *@
+        <div class="rpt-card">
+            <div class="rpt-card__title">
+                <svg class="rpt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+                    <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+                </svg>
+                Importar Gastos CSV
+            </div>
+
+            <div class="rpt-form">
+                <div class="rpt-csv-hint">
+                    <span class="rpt-csv-hint__title">Formato esperado del CSV</span>
+                    <code class="rpt-csv-hint__code">Date,Category,Amount,Description</code>
+                    <span class="rpt-csv-hint__cats">Categorías: Food, Beverage, Utilities, Wages, Maintenance, Marketing, Other</span>
+                </div>
+
+                <label class="rpt-file-label">
+                    <InputFile OnChange="OnFileSelected" accept=".csv" />
+                    <span class="rpt-file-btn">📂 Seleccionar archivo CSV</span>
+                    @if (csvFileName is not null)
+                    {
+                        <span class="rpt-file-name">@csvFileName</span>
+                    }
+                </label>
+
+                <button class="rpt-btn rpt-btn--accent" @onclick="ImportCsv"
+                        disabled="@(isImporting || csvBytes is null)">
+                    @(isImporting ? "Importando..." : "↑ Importar")
+                </button>
+
+                @if (csvMessage is not null)
+                {
+                    <div class="rpt-alert rpt-alert--@(csvSuccess ? "success" : "error")">
+                        @csvMessage
+                    </div>
+                }
+            </div>
+        </div>
+
+    </div>
+
+    @* ── Reports List ── *@
+    <div class="rpt-list-section">
+        <div class="rpt-list-head">
+            <span class="rpt-list-title">Reportes Generados</span>
+            <button class="rpt-btn rpt-btn--ghost" @onclick="LoadReports">↻ Actualizar</button>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="rpt-loading">
+                <div class="rpt-spinner"></div>
+                <span>Cargando reportes...</span>
+            </div>
+        }
+        else if (reports is not null && reports.Any())
+        {
+            <div class="rpt-table-wrap">
+                <table class="rpt-table">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Período</th>
+                            <th>Generado</th>
+                            <th>Descargar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in reports)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="rpt-badge rpt-badge--@r.Type.ToLower()">@r.Type</span>
+                                </td>
+                                <td class="rpt-period">
+                                    @r.PeriodStart.ToString("dd MMM yyyy") — @r.PeriodEnd.ToString("dd MMM yyyy")
+                                </td>
+                                <td class="rpt-date">@r.GeneratedAt.ToString("dd MMM yyyy HH:mm")</td>
+                                <td>
+                                    <a class="rpt-dl-btn" href="@r.FilePath" target="_blank" download>
+                                        ⬇ PDF
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else if (!isLoading)
+        {
+            <div class="rpt-empty">
+                <span>📋</span>
+                <p>No hay reportes generados aún. ¡Genera tu primer reporte!</p>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .rpt-page { padding: 2rem; background: #0f1117; min-height: 100vh; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+    .rpt-header { margin-bottom: 1.75rem; }
+    .rpt-title { font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0; }
+    .rpt-subtitle { color: #64748b; margin: 0.25rem 0 0; }
+
+    .rpt-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+
+    .rpt-card { background: #1e2433; border: 1px solid #2d3748; border-radius: 14px; padding: 1.5rem; }
+    .rpt-card__title { display: flex; align-items: center; gap: 0.6rem; font-size: 1rem; font-weight: 700; color: #f8fafc; margin-bottom: 1.25rem; }
+    .rpt-icon { width: 18px; height: 18px; color: #3b82f6; flex-shrink: 0; }
+
+    .rpt-form { display: flex; flex-direction: column; gap: 1rem; }
+    .rpt-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .rpt-field { display: flex; flex-direction: column; gap: 0.4rem; }
+    .rpt-label { font-size: 0.8rem; color: #94a3b8; font-weight: 500; }
+    .rpt-input { background: #0f1117; border: 1px solid #2d3748; color: #e2e8f0; padding: 0.6rem 0.9rem; border-radius: 8px; font-size: 0.9rem; }
+    .rpt-input:focus { outline: none; border-color: #3b82f6; }
+
+    .rpt-radio-group { display: flex; gap: 1rem; }
+    .rpt-radio { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; color: #94a3b8; cursor: pointer; }
+    .rpt-radio input[type="radio"] { accent-color: #3b82f6; }
+
+    .rpt-btn { padding: 0.65rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
+    .rpt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .rpt-btn--primary { background: #3b82f6; color: white; }
+    .rpt-btn--primary:hover:not(:disabled) { background: #2563eb; }
+    .rpt-btn--accent { background: #10b981; color: white; }
+    .rpt-btn--accent:hover:not(:disabled) { background: #059669; }
+    .rpt-btn--ghost { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; font-size: 0.85rem; padding: 0.45rem 1rem; }
+    .rpt-btn--ghost:hover { background: #2d3748; }
+
+    .rpt-alert { padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.85rem; }
+    .rpt-alert--success { background: #064e3b; border: 1px solid #10b981; color: #6ee7b7; }
+    .rpt-alert--error { background: #2d1515; border: 1px solid #ef4444; color: #fca5a5; }
+
+    .rpt-csv-hint { background: #0b0e14; border: 1px solid #1e2433; border-radius: 8px; padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.3rem; }
+    .rpt-csv-hint__title { font-size: 0.75rem; color: #475569; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+    .rpt-csv-hint__code { font-family: 'Courier New', monospace; font-size: 0.82rem; color: #60a5fa; }
+    .rpt-csv-hint__cats { font-size: 0.75rem; color: #334155; }
+
+    .rpt-file-label { display: flex; flex-direction: column; gap: 0.6rem; cursor: pointer; }
+    .rpt-file-label input[type="file"] { display: none; }
+    .rpt-file-btn { display: inline-flex; align-items: center; gap: 0.5rem; background: #0f1117; border: 1px dashed #2d3748; color: #94a3b8; padding: 0.65rem 1.1rem; border-radius: 8px; font-size: 0.875rem; transition: border-color 0.2s; width: fit-content; }
+    .rpt-file-btn:hover { border-color: #3b82f6; color: #60a5fa; }
+    .rpt-file-name { font-size: 0.8rem; color: #60a5fa; }
+
+    .rpt-list-section { background: #1e2433; border: 1px solid #2d3748; border-radius: 14px; padding: 1.5rem; }
+    .rpt-list-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+    .rpt-list-title { font-size: 0.72rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .rpt-table-wrap { overflow-x: auto; }
+    .rpt-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .rpt-table th { text-align: left; padding: 0.6rem 0.75rem; color: #334155; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #2d3748; }
+    .rpt-table td { padding: 0.8rem 0.75rem; border-bottom: 1px solid #1a2030; color: #94a3b8; }
+    .rpt-table tr:last-child td { border-bottom: none; }
+    .rpt-table tr:hover td { background: #0f1320; }
+
+    .rpt-badge { font-size: 0.72rem; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: 600; }
+    .rpt-badge--weekly { background: #1d3461; color: #60a5fa; }
+    .rpt-badge--monthly { background: #2d1f5e; color: #a78bfa; }
+
+    .rpt-period { color: #e2e8f0; font-weight: 500; }
+    .rpt-date { color: #64748b; font-size: 0.82rem; }
+
+    .rpt-dl-btn { display: inline-block; background: #0f2d1a; border: 1px solid #10b981; color: #6ee7b7; padding: 0.3rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+    .rpt-dl-btn:hover { background: #10b981; color: white; }
+
+    .rpt-loading { display: flex; align-items: center; gap: 1rem; padding: 2rem; color: #64748b; }
+    .rpt-spinner { width: 24px; height: 24px; border: 3px solid #2d3748; border-top-color: #3b82f6; border-radius: 50%; animation: rptSpin 0.8s linear infinite; }
+    @@keyframes rptSpin { to { transform: rotate(360deg); } }
+    .rpt-empty { text-align: center; padding: 3rem; color: #64748b; }
+    .rpt-empty span { font-size: 2.5rem; display: block; margin-bottom: 0.75rem; }
+</style>
+
+@code {
+    private IReadOnlyList<ReportDto>? reports;
+    private bool isLoading = true;
+
+    // Generate state
+    private DateOnly genFrom = DateOnly.FromDateTime(DateTime.Today.AddDays(-7));
+    private DateOnly genTo   = DateOnly.FromDateTime(DateTime.Today);
+    private ReportType genType = ReportType.Weekly;
+    private bool isGenerating = false;
+    private string? genMessage;
+    private bool genSuccess;
+
+    // CSV state
+    private byte[]? csvBytes;
+    private string? csvFileName;
+    private bool isImporting = false;
+    private string? csvMessage;
+    private bool csvSuccess;
+
+    // Current user's employee id
+    private Guid? _employeeId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ResolveEmployeeId();
+        await LoadReports();
+    }
+
+    private async Task ResolveEmployeeId()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var appUser = await UserManager.GetUserAsync(authState.User);
+        _employeeId = appUser?.EmployeeId;
+
+        if (_employeeId is null)
+        {
+            // Fallback: use first active employee
+            var employees = await Mediator.Send(new GetAllEmployeesQuery());
+            _employeeId = employees.FirstOrDefault()?.Id;
+        }
+    }
+
+    private async Task LoadReports()
+    {
+        isLoading = true;
+        try { reports = await Mediator.Send(new GetReportsQuery()); }
+        catch { reports = new List<ReportDto>(); }
+        finally { isLoading = false; }
+    }
+
+    private async Task GenerateReport()
+    {
+        if (_employeeId is null) { genMessage = "No se pudo determinar el empleado actual."; genSuccess = false; return; }
+        if (genFrom >= genTo) { genMessage = "La fecha de inicio debe ser anterior a la fecha de fin."; genSuccess = false; return; }
+
+        isGenerating = true;
+        genMessage = null;
+        try
+        {
+            var reportId = await Mediator.Send(new GenerateWeeklyReportCommand
+            {
+                From = genFrom,
+                To = genTo,
+                Type = genType,
+                GeneratedByEmployeeId = _employeeId.Value,
+            });
+            genMessage = $"Reporte generado correctamente (ID: {reportId:N}).";
+            genSuccess = true;
+            await LoadReports();
+        }
+        catch (Exception ex)
+        {
+            genMessage = $"Error: {ex.Message}";
+            genSuccess = false;
+        }
+        finally { isGenerating = false; }
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        csvFileName = file.Name;
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(ms);
+        csvBytes = ms.ToArray();
+        csvMessage = null;
+    }
+
+    private async Task ImportCsv()
+    {
+        if (csvBytes is null || _employeeId is null) return;
+
+        isImporting = true;
+        csvMessage = null;
+        try
+        {
+            var count = await Mediator.Send(new ImportExpensesFromCsvCommand
+            {
+                CsvContent = csvBytes,
+                RecordedByEmployeeId = _employeeId.Value,
+            });
+            csvMessage = $"{count} gasto(s) importado(s) correctamente.";
+            csvSuccess = true;
+            csvBytes = null;
+            csvFileName = null;
+        }
+        catch (Exception ex)
+        {
+            csvMessage = $"Error: {ex.Message}";
+            csvSuccess = false;
+        }
+        finally { isImporting = false; }
+    }
+}

@@ -3,10 +3,14 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using QuestPDF.Infrastructure;
+using RestaurantDashboard.Application.Common.Interfaces;
 using RestaurantDashboard.Domain.Repositories;
+using RestaurantDashboard.Infrastructure.BackgroundJobs;
 using RestaurantDashboard.Infrastructure.Identity;
 using RestaurantDashboard.Infrastructure.Persistence;
 using RestaurantDashboard.Infrastructure.Persistence.Repositories;
+using RestaurantDashboard.Infrastructure.Reporting;
 
 namespace RestaurantDashboard.Infrastructure;
 
@@ -16,6 +20,9 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // QuestPDF community licence (free for open-source / academic projects)
+        QuestPDF.Settings.License = LicenseType.Community;
+
         // Database
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(
@@ -50,7 +57,10 @@ public static class DependencyInjection
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
         services.AddScoped<IExpenseRepository, ExpenseRepository>();
         services.AddScoped<IMenuItemRepository, MenuItemRepository>();
+        services.AddScoped<IReportRepository, ReportRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IReportService, PdfReportService>();
+        services.AddHostedService<WeeklyReportJob>();
         return services;
     }
 }
