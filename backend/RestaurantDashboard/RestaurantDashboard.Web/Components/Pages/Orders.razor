@@ -2,10 +2,17 @@
 @attribute [Authorize(Policy = "AllStaff")]
 @implements IDisposable
 @using MediatR
-@using RestaurantDashboard.Application.Sales.Queries.GetOpenOrders
+@using RestaurantDashboard.Application.Employees.Dtos
+@using RestaurantDashboard.Application.Employees.Queries.GetAllEmployees
+@using RestaurantDashboard.Application.MenuItems.Dtos
+@using RestaurantDashboard.Application.MenuItems.Queries.GetMenuItems
+@using RestaurantDashboard.Application.Sales.Commands.AddOrderItem
 @using RestaurantDashboard.Application.Sales.Commands.CloseOrder
+@using RestaurantDashboard.Application.Sales.Commands.CreateOrder
 @using RestaurantDashboard.Application.Sales.Commands.VoidOrder
 @using RestaurantDashboard.Application.Sales.Dtos
+@using RestaurantDashboard.Application.Sales.Queries.GetOpenOrders
+@using RestaurantDashboard.Domain.Enums
 @using RestaurantDashboard.Web.Services
 @inject IMediator Mediator
 @inject OrderNotifier OrderNotifier
@@ -22,7 +29,10 @@
             <span class="ord-realtime__dot"></span>
             <span class="ord-realtime__label">En vivo</span>
         </div>
-        <button class="ord-btn ord-btn--refresh" @onclick="LoadOrders">↻ Actualizar</button>
+        <div class="ord-header-actions">
+            <button class="ord-btn ord-btn--refresh" @onclick="LoadOrders">↻ Actualizar</button>
+            <button class="ord-btn ord-btn--new" @onclick="OpenCreateModal">+ Nueva Orden</button>
+        </div>
     </div>
 
     @if (isLoading)
@@ -60,7 +70,10 @@
                 <div class="ord-detail__head">
                     <h2>Mesa @selectedOrder.TableNumber — Detalle</h2>
                     <div class="ord-detail__actions">
-                        <button class="ord-btn ord-btn--close" @onclick="CloseOrder" disabled="@isActing">
+                        <button class="ord-btn ord-btn--add-item" @onclick="OpenAddItemModal" disabled="@isActing">
+                            + Agregar Producto
+                        </button>
+                        <button class="ord-btn ord-btn--close" @onclick="OpenCloseModal" disabled="@isActing">
                             ✅ Cerrar Orden
                         </button>
                         <button class="ord-btn ord-btn--void" @onclick="VoidOrder" disabled="@isActing">
@@ -79,13 +92,22 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var item in selectedOrder.Items)
+                        @if (selectedOrder.Items.Any())
+                        {
+                            @foreach (var item in selectedOrder.Items)
+                            {
+                                <tr>
+                                    <td>@item.MenuItemName</td>
+                                    <td>@item.Quantity</td>
+                                    <td>@item.UnitPrice.ToString("C")</td>
+                                    <td class="ord-table__total">@item.LineTotal.ToString("C")</td>
+                                </tr>
+                            }
+                        }
+                        else
                         {
                             <tr>
-                                <td>@item.MenuItemName</td>
-                                <td>@item.Quantity</td>
-                                <td>@item.UnitPrice.ToString("C")</td>
-                                <td class="ord-table__total">@item.LineTotal.ToString("C")</td>
+                                <td colspan="4" class="ord-table__empty">Sin productos — agrega ítems con "+ Agregar Producto"</td>
                             </tr>
                         }
                     </tbody>
@@ -104,6 +126,7 @@
         <div class="ord-empty">
             <span>🎉</span>
             <p>No hay órdenes abiertas en este momento</p>
+            <button class="ord-btn ord-btn--new" @onclick="OpenCreateModal">+ Nueva Orden</button>
         </div>
     }
 
@@ -115,23 +138,173 @@
     }
 </div>
 
+@* ── Modal: Nueva Orden ── *@
+@if (showCreateModal)
+{
+    <div class="ord-modal-backdrop" @onclick="CloseCreateModal">
+        <div class="ord-modal" @onclick:stopPropagation>
+            <h2 class="ord-modal__title">Nueva Orden</h2>
+
+            <div class="ord-form">
+                <label class="ord-label">Número de mesa</label>
+                <input class="ord-input" type="number" min="1" @bind="formTableNumber" />
+
+                <label class="ord-label">Empleado</label>
+                @if (employees is null)
+                {
+                    <div class="ord-form-loading">Cargando empleados...</div>
+                }
+                else
+                {
+                    <select class="ord-input" @bind="formEmployeeId">
+                        @foreach (var emp in employees)
+                        {
+                            <option value="@emp.Id">@emp.FullName (@emp.Role)</option>
+                        }
+                    </select>
+                }
+
+                <label class="ord-label">Notas (opcional)</label>
+                <input class="ord-input" type="text" @bind="formNotes"
+                    placeholder="Ej: alergia a nueces, mesa exterior..." />
+
+                @if (modalError is not null)
+                {
+                    <div class="ord-form-error">@modalError</div>
+                }
+
+                <div class="ord-form-actions">
+                    <button class="ord-btn ord-btn--cancel" @onclick="CloseCreateModal">Cancelar</button>
+                    <button class="ord-btn ord-btn--confirm" @onclick="CreateOrder"
+                        disabled="@(isModalSaving || employees is null)">
+                        @(isModalSaving ? "Creando..." : "Abrir Orden")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Modal: Agregar Producto ── *@
+@if (showAddItemModal)
+{
+    <div class="ord-modal-backdrop" @onclick="CloseAddItemModal">
+        <div class="ord-modal" @onclick:stopPropagation>
+            <h2 class="ord-modal__title">Agregar Producto</h2>
+            <p class="ord-modal__sub">Mesa @selectedOrder?.TableNumber</p>
+
+            <div class="ord-form">
+                <label class="ord-label">Producto</label>
+                @if (menuItems is null)
+                {
+                    <div class="ord-form-loading">Cargando menú...</div>
+                }
+                else
+                {
+                    <select class="ord-input" @bind="formMenuItemId">
+                        @foreach (var mi in menuItems.Where(m => m.IsAvailable))
+                        {
+                            <option value="@mi.Id">@mi.Name — @mi.BasePrice.ToString("C") (@mi.Category)</option>
+                        }
+                    </select>
+                }
+
+                <label class="ord-label">Cantidad</label>
+                <input class="ord-input" type="number" min="1" max="99" @bind="formQuantity" />
+
+                @if (modalError is not null)
+                {
+                    <div class="ord-form-error">@modalError</div>
+                }
+
+                <div class="ord-form-actions">
+                    <button class="ord-btn ord-btn--cancel" @onclick="CloseAddItemModal">Cancelar</button>
+                    <button class="ord-btn ord-btn--confirm" @onclick="AddItem"
+                        disabled="@(isModalSaving || menuItems is null)">
+                        @(isModalSaving ? "Agregando..." : "Agregar")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Modal: Cerrar Orden (pago) ── *@
+@if (showCloseModal && selectedOrder is not null)
+{
+    <div class="ord-modal-backdrop" @onclick="CloseCloseModal">
+        <div class="ord-modal" @onclick:stopPropagation>
+            <h2 class="ord-modal__title">Cobrar Orden</h2>
+            <p class="ord-modal__sub">Mesa @selectedOrder.TableNumber · @selectedOrder.Subtotal.ToString("C")</p>
+
+            <div class="ord-form">
+                <label class="ord-label">Método de pago</label>
+                <div class="ord-payment-grid">
+                    @foreach (var method in Enum.GetValues<PaymentMethod>())
+                    {
+                        <button class="ord-payment-btn @(formPaymentMethod == method ? "ord-payment-btn--active" : "")"
+                            @onclick="() => formPaymentMethod = method">
+                            @PaymentIcon(method) @method
+                        </button>
+                    }
+                </div>
+
+                <label class="ord-label">Propina (€)</label>
+                <input class="ord-input" type="number" min="0" step="0.01" @bind="formTipAmount" />
+
+                <div class="ord-close-summary">
+                    <span>Subtotal</span><span>@selectedOrder.Subtotal.ToString("C")</span>
+                    <span>Propina</span><span>@formTipAmount.ToString("C")</span>
+                    <span class="ord-close-total">Total a cobrar</span>
+                    <span class="ord-close-total">@((selectedOrder.Subtotal + formTipAmount).ToString("C"))</span>
+                </div>
+
+                @if (modalError is not null)
+                {
+                    <div class="ord-form-error">@modalError</div>
+                }
+
+                <div class="ord-form-actions">
+                    <button class="ord-btn ord-btn--cancel" @onclick="CloseCloseModal">Cancelar</button>
+                    <button class="ord-btn ord-btn--confirm ord-btn--pay" @onclick="ConfirmCloseOrder"
+                        disabled="@isModalSaving">
+                        @(isModalSaving ? "Procesando..." : "Confirmar Cobro")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
     .ord-page { padding: 2rem; background: #0f1117; min-height: 100vh; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
-    .ord-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .ord-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
     .ord-title { font-size: 2rem; font-weight: 700; color: #f8fafc; margin: 0; }
     .ord-subtitle { color: #64748b; margin: 0.25rem 0 0; }
+    .ord-header-actions { display: flex; gap: 0.6rem; }
     .ord-realtime { display: flex; align-items: center; gap: 0.4rem; }
     .ord-realtime__dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; animation: livePulse 2s ease-in-out infinite; }
     .ord-realtime__label { font-size: 0.75rem; color: #10b981; font-weight: 600; letter-spacing: 0.04em; }
     @@keyframes livePulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
-    .ord-btn { padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
+
+    .ord-btn { padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.875rem; transition: all 0.2s; }
     .ord-btn--refresh { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; }
     .ord-btn--refresh:hover { background: #2d3748; }
+    .ord-btn--new { background: #3b82f6; color: white; }
+    .ord-btn--new:hover { background: #2563eb; }
+    .ord-btn--add-item { background: #1e2433; border: 1px solid #3b82f6; color: #60a5fa; font-size: 0.82rem; padding: 0.5rem 1rem; }
+    .ord-btn--add-item:hover:not(:disabled) { background: #1a2a40; }
     .ord-btn--close { background: #10b981; color: white; }
     .ord-btn--close:hover:not(:disabled) { background: #059669; }
     .ord-btn--void { background: #ef4444; color: white; }
     .ord-btn--void:hover:not(:disabled) { background: #dc2626; }
+    .ord-btn--cancel { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; }
+    .ord-btn--confirm { background: #10b981; color: white; }
+    .ord-btn--confirm:hover:not(:disabled) { background: #059669; }
+    .ord-btn--pay { background: #3b82f6; }
+    .ord-btn--pay:hover:not(:disabled) { background: #2563eb; }
     .ord-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .ord-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
     .ord-card { background: #1e2433; border: 2px solid #2d3748; border-radius: 14px; padding: 1.25rem; cursor: pointer; transition: all 0.2s; }
     .ord-card:hover { border-color: #3b82f6; transform: translateY(-2px); }
@@ -145,25 +318,51 @@
     .ord-card__time { font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem; }
     .ord-card__total { font-size: 1.3rem; font-weight: 700; color: #10b981; }
     .ord-card__notes { font-size: 0.8rem; color: #64748b; margin-top: 0.5rem; border-top: 1px solid #2d3748; padding-top: 0.5rem; }
+
     .ord-detail { background: #1e2433; border: 1px solid #2d3748; border-radius: 14px; padding: 1.5rem; }
-    .ord-detail__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem; }
-    .ord-detail__head h2 { margin: 0; color: #f8fafc; }
-    .ord-detail__actions { display: flex; gap: 0.75rem; }
+    .ord-detail__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; }
+    .ord-detail__head h2 { margin: 0; color: #f8fafc; font-size: 1.1rem; }
+    .ord-detail__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
     .ord-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     .ord-table th { text-align: left; padding: 0.6rem 0.75rem; color: #64748b; border-bottom: 1px solid #2d3748; }
     .ord-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #1a2030; }
     .ord-table tfoot td { border-top: 2px solid #2d3748; border-bottom: none; font-weight: 700; }
     .ord-table__total, .ord-table__subtotal { color: #10b981; text-align: right; font-weight: 600; }
     .ord-table__subtotal-label { text-align: right; color: #94a3b8; }
+    .ord-table__empty { text-align: center; color: #475569; padding: 1.5rem; font-style: italic; }
+
     .ord-loading { display: flex; align-items: center; gap: 1rem; padding: 3rem; color: #64748b; }
     .ord-spinner { width: 32px; height: 32px; border: 3px solid #2d3748; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @@keyframes spin { to { transform: rotate(360deg); } }
     .ord-empty { text-align: center; padding: 4rem; color: #64748b; }
     .ord-empty span { font-size: 3rem; display: block; margin-bottom: 1rem; }
+    .ord-empty p { margin-bottom: 1.5rem; }
+
     .ord-toast { position: fixed; bottom: 2rem; right: 2rem; padding: 1rem 1.5rem; border-radius: 10px; font-weight: 600; animation: slideIn 0.3s ease; z-index: 999; }
     .ord-toast--success { background: #064e3b; border: 1px solid #10b981; color: #6ee7b7; }
     .ord-toast--error { background: #2d1515; border: 1px solid #ef4444; color: #fca5a5; }
     @@keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .ord-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .ord-modal { background: #1e2433; border: 1px solid #2d3748; border-radius: 16px; padding: 2rem; width: 100%; max-width: 460px; }
+    .ord-modal__title { font-size: 1.3rem; font-weight: 700; color: #f8fafc; margin: 0 0 0.2rem; }
+    .ord-modal__sub { color: #64748b; font-size: 0.88rem; margin: 0 0 1.5rem; }
+    .ord-form { display: flex; flex-direction: column; gap: 0.75rem; }
+    .ord-label { font-size: 0.8rem; color: #94a3b8; }
+    .ord-input { background: #0f1117; border: 1px solid #2d3748; color: #e2e8f0; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.9rem; }
+    .ord-input:focus { outline: none; border-color: #3b82f6; }
+    .ord-form-loading { color: #475569; font-size: 0.85rem; padding: 0.5rem; }
+    .ord-form-error { background: #2d1515; border: 1px solid #ef4444; color: #fca5a5; padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; }
+    .ord-form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem; }
+
+    .ord-payment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .ord-payment-btn { background: #0f1117; border: 1px solid #2d3748; color: #64748b; padding: 0.65rem 0.5rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.15s; text-align: center; }
+    .ord-payment-btn:hover { border-color: #3b82f6; color: #93c5fd; }
+    .ord-payment-btn--active { background: #1d3461; border-color: #3b82f6; color: #60a5fa; font-weight: 700; }
+
+    .ord-close-summary { display: grid; grid-template-columns: 1fr auto; gap: 0.4rem 1rem; background: #0f1117; border: 1px solid #1e2433; border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.88rem; color: #64748b; align-items: center; }
+    .ord-close-total { color: #f8fafc; font-weight: 700; font-size: 1rem; }
 </style>
 
 @code {
@@ -174,6 +373,28 @@
     private bool isActing = false;
     private string? actionMessage;
     private bool actionSuccess = true;
+
+    // Shared modal state
+    private bool isModalSaving = false;
+    private string? modalError;
+
+    // Create Order modal
+    private bool showCreateModal = false;
+    private int formTableNumber = 1;
+    private Guid formEmployeeId;
+    private string formNotes = "";
+    private IReadOnlyList<EmployeeDto>? employees;
+
+    // Add Item modal
+    private bool showAddItemModal = false;
+    private Guid formMenuItemId;
+    private int formQuantity = 1;
+    private IReadOnlyList<MenuItemDto>? menuItems;
+
+    // Close Order (payment) modal
+    private bool showCloseModal = false;
+    private PaymentMethod formPaymentMethod = PaymentMethod.Cash;
+    private decimal formTipAmount = 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -193,7 +414,13 @@
     private async Task LoadOrders()
     {
         isLoading = true;
-        try { orders = await Mediator.Send(new GetOpenOrdersQuery()); }
+        try
+        {
+            orders = await Mediator.Send(new GetOpenOrdersQuery());
+            // Keep selected order in sync after reload
+            if (selectedOrderId.HasValue)
+                selectedOrder = orders.FirstOrDefault(o => o.Id == selectedOrderId);
+        }
         catch (Exception ex) { ShowMessage($"Error: {ex.Message}", false); }
         finally { isLoading = false; }
     }
@@ -204,21 +431,136 @@
         selectedOrderId = order.Id;
     }
 
-    private async Task CloseOrder()
+    // ── Create Order ──
+
+    private async Task OpenCreateModal()
     {
-        if (selectedOrder is null) return;
-        isActing = true;
+        formTableNumber = 1;
+        formNotes = "";
+        modalError = null;
+        showCreateModal = true;
+
+        if (employees is null)
+        {
+            try
+            {
+                employees = await Mediator.Send(new GetAllEmployeesQuery());
+                if (employees.Any()) formEmployeeId = employees[0].Id;
+            }
+            catch { employees = []; }
+        }
+    }
+
+    private void CloseCreateModal() { showCreateModal = false; modalError = null; }
+
+    private async Task CreateOrder()
+    {
+        if (formTableNumber < 1) { modalError = "El número de mesa debe ser mayor a 0."; return; }
+        if (formEmployeeId == Guid.Empty) { modalError = "Selecciona un empleado."; return; }
+
+        isModalSaving = true;
+        modalError = null;
         try
         {
-            await Mediator.Send(new CloseOrderCommand { OrderId = selectedOrder.Id });
-            ShowMessage($"Orden de Mesa {selectedOrder.TableNumber} cerrada.", true);
+            var order = await Mediator.Send(new CreateOrderCommand
+            {
+                TableNumber = formTableNumber,
+                EmployeeId = formEmployeeId,
+                Notes = string.IsNullOrWhiteSpace(formNotes) ? null : formNotes
+            });
+            CloseCreateModal();
+            await LoadOrders();
+            SelectOrder(order);
+            ShowMessage($"Orden creada para Mesa {order.TableNumber}.", true);
+        }
+        catch (Exception ex) { modalError = $"Error: {ex.Message}"; }
+        finally { isModalSaving = false; }
+    }
+
+    // ── Add Item ──
+
+    private async Task OpenAddItemModal()
+    {
+        formQuantity = 1;
+        modalError = null;
+        showAddItemModal = true;
+
+        if (menuItems is null)
+        {
+            try
+            {
+                menuItems = await Mediator.Send(new GetMenuItemsQuery());
+                var first = menuItems.FirstOrDefault(m => m.IsAvailable);
+                if (first is not null) formMenuItemId = first.Id;
+            }
+            catch { menuItems = []; }
+        }
+    }
+
+    private void CloseAddItemModal() { showAddItemModal = false; modalError = null; }
+
+    private async Task AddItem()
+    {
+        if (selectedOrder is null) return;
+        if (formMenuItemId == Guid.Empty) { modalError = "Selecciona un producto."; return; }
+        if (formQuantity < 1) { modalError = "La cantidad debe ser al menos 1."; return; }
+
+        isModalSaving = true;
+        modalError = null;
+        try
+        {
+            await Mediator.Send(new AddOrderItemCommand
+            {
+                OrderId = selectedOrder.Id,
+                MenuItemId = formMenuItemId,
+                Quantity = formQuantity
+            });
+            CloseAddItemModal();
+            await LoadOrders();
+            ShowMessage("Producto agregado.", true);
+        }
+        catch (Exception ex) { modalError = $"Error: {ex.Message}"; }
+        finally { isModalSaving = false; }
+    }
+
+    // ── Close Order (with payment) ──
+
+    private void OpenCloseModal()
+    {
+        formPaymentMethod = PaymentMethod.Cash;
+        formTipAmount = 0;
+        modalError = null;
+        showCloseModal = true;
+    }
+
+    private void CloseCloseModal() { showCloseModal = false; modalError = null; }
+
+    private async Task ConfirmCloseOrder()
+    {
+        if (selectedOrder is null) return;
+
+        isModalSaving = true;
+        modalError = null;
+        try
+        {
+            await Mediator.Send(new CloseOrderCommand
+            {
+                OrderId = selectedOrder.Id,
+                PaymentMethod = formPaymentMethod,
+                TipAmount = formTipAmount
+            });
+            var table = selectedOrder.TableNumber;
+            CloseCloseModal();
             selectedOrder = null;
             selectedOrderId = null;
             await LoadOrders();
+            ShowMessage($"Orden de Mesa {table} cobrada con {formPaymentMethod}.", true);
         }
-        catch (Exception ex) { ShowMessage($"Error: {ex.Message}", false); }
-        finally { isActing = false; }
+        catch (Exception ex) { modalError = $"Error: {ex.Message}"; }
+        finally { isModalSaving = false; }
     }
+
+    // ── Void ──
 
     private async Task VoidOrder()
     {
@@ -236,10 +578,21 @@
         finally { isActing = false; }
     }
 
+    // ── Helpers ──
+
     private void ShowMessage(string msg, bool success)
     {
         actionMessage = msg;
         actionSuccess = success;
-        _ = Task.Delay(3000).ContinueWith(_ => { actionMessage = null; InvokeAsync(StateHasChanged); });
+        _ = Task.Delay(3500).ContinueWith(_ => { actionMessage = null; InvokeAsync(StateHasChanged); });
     }
+
+    private static string PaymentIcon(PaymentMethod method) => method switch
+    {
+        PaymentMethod.Cash => "💵",
+        PaymentMethod.Card => "💳",
+        PaymentMethod.Contactless => "📱",
+        PaymentMethod.GiftCard => "🎁",
+        _ => "💰"
+    };
 }

@@ -84,10 +84,12 @@ RestaurantDashboard/
 ## Implementation Roadmap
 
 - [x] **Phase 1** — Foundation: Solution structure, Domain, Application, Infrastructure, EF Core migrations
-- [ ] **Phase 2** — Core Domain: Full CQRS handlers, unit tests
-- [ ] **Phase 3** — Blazor Frontend: POS UI, Dashboard with charts
-- [ ] **Phase 4** — Reporting & CSV Import: QuestPDF, background jobs
-- [ ] **Phase 5** — Real-time & CI/CD: SignalR, GitHub Actions
+- [x] **Phase 2** — Core Domain: Full CQRS handlers, unit tests
+- [x] **Phase 3** — Blazor Frontend: POS UI, Dashboard with charts
+- [x] **Phase 4** — Reporting & CSV Import: QuestPDF, background jobs
+- [x] **Phase 5** — Real-time & CI/CD: SignalR, GitHub Actions
+- [x] **Phase 6** — Expenses & Staff: expense management, employee shifts, clock in/out
+- [x] **Phase 7** — POS completion: create orders, add items, payment method selection
 
 ---
 
