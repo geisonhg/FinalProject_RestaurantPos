@@ -66,3 +66,12 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# Windows Zone.Identifier alternate data streams (WSL2 artifacts)
+*:Zone.Identifier
+
+# Generated PDF reports (runtime output, not source)
+**/wwwroot/reports/
+
+# Zip files in root
+*.zip
