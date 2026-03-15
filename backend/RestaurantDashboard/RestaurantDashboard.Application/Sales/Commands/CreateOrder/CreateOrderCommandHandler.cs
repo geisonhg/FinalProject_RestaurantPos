@@ -33,6 +33,10 @@ public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderComma
         if (!employee.IsActive)
             throw new ForbiddenException($"Employee '{employee.FullName}' is inactive.");
 
+        if (await _orders.HasOpenOrderForTableAsync(request.TableNumber, cancellationToken))
+            throw new InvalidOperationException(
+                $"Table {request.TableNumber} already has an open order. Close it before opening a new one.");
+
         var order = Order.Open(request.TableNumber, request.EmployeeId, request.Notes);
         await _orders.AddAsync(order, cancellationToken);
         await _uow.CommitAsync(cancellationToken);

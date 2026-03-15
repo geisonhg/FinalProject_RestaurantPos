@@ -19,6 +19,10 @@ public sealed class OrderRepository : IOrderRepository
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
+    public Task<bool> HasOpenOrderForTableAsync(int tableNumber, CancellationToken ct) =>
+        _context.Orders.AnyAsync(
+            o => o.TableNumber == tableNumber && o.Status == OrderStatus.Open, ct);
+
     public async Task<IReadOnlyList<Order>> GetOpenOrdersAsync(CancellationToken ct) =>
         await _context.Orders
             .Include(o => o.Items)
