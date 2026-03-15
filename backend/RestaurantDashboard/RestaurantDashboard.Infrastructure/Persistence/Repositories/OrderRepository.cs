@@ -77,6 +77,15 @@ public sealed class OrderRepository : IOrderRepository
                 .Select(e => e.Entity.Id)
                 .ToHashSet();
 
+            // Delete items that were removed from the domain collection.
+            var currentItemIds = order.Items.Select(i => i.Id).ToHashSet();
+            foreach (var entry in _context.ChangeTracker.Entries<OrderItem>()
+                .Where(e => e.Entity.OrderId == order.Id).ToList())
+            {
+                if (!currentItemIds.Contains(entry.Entity.Id))
+                    entry.State = Microsoft.EntityFrameworkCore.EntityState.Deleted;
+            }
+
             // Explicitly Add new items. _context.Add() uses EntryWithoutDetectChanges
             // internally (no DetectChanges triggered) AND properly traverses the entity
             // graph, so owned entities like UnitPrice are tracked correctly.
