@@ -2,17 +2,13 @@
 @attribute [Authorize(Policy = "CanGenerateReports")]
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using MediatR
-@using Microsoft.AspNetCore.Identity
 @using RestaurantDashboard.Application.Reports.Queries.GetReports
 @using RestaurantDashboard.Application.Reports.Commands.GenerateWeeklyReport
 @using RestaurantDashboard.Application.Reports.Commands.ImportExpensesFromCsv
 @using RestaurantDashboard.Application.Employees.Queries.GetAllEmployees
 @using RestaurantDashboard.Application.Reports.Dtos
 @using RestaurantDashboard.Domain.Enums
-@using RestaurantDashboard.Infrastructure.Identity
 @inject IMediator Mediator
-@inject UserManager<ApplicationUser> UserManager
-@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Reports</PageTitle>
 
@@ -285,16 +281,9 @@
 
     private async Task ResolveEmployeeId()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var appUser = await UserManager.GetUserAsync(authState.User);
-        _employeeId = appUser?.EmployeeId;
-
-        if (_employeeId is null)
-        {
-            // Fallback: use first active employee
-            var employees = await Mediator.Send(new GetAllEmployeesQuery());
-            _employeeId = employees.FirstOrDefault()?.Id;
-        }
+        var employees = await Mediator.Send(new GetAllEmployeesQuery());
+        _employeeId = employees.FirstOrDefault(e => e.IsActive)?.Id
+                   ?? employees.FirstOrDefault()?.Id;
     }
 
     private async Task LoadReports()
