@@ -276,6 +276,225 @@ public sealed class PdfReportService : IReportService
             });
         });
 
+    // ── Order Receipt ────────────────────────────────────────────────────────
+
+    public Task<string> GenerateOrderReceiptAsync(OrderDto order, CancellationToken ct = default)
+    {
+        var fileName = $"receipt_{order.Id:N}.pdf";
+        var fullPath = Path.Combine(_reportsDir, fileName);
+        var relativePath = $"/reports/{fileName}";
+
+        Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A5);
+                page.Margin(30);
+                page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+                page.Content().Element(ComposeReceipt(order));
+                page.Footer().Element(ComposeFooter());
+            });
+        }).GeneratePdf(fullPath);
+
+        return Task.FromResult(relativePath);
+    }
+
+    private static Action<IContainer> ComposeReceipt(OrderDto order) =>
+        c => c.Column(col =>
+        {
+            col.Spacing(10);
+
+            col.Item().AlignCenter().Text("Restaurant POS").FontSize(20).Bold().FontColor(Colors.Grey.Darken3);
+            col.Item().AlignCenter().Text("ORDER RECEIPT").FontSize(11).FontColor(Colors.Grey.Medium);
+            col.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(cols => { cols.RelativeColumn(); cols.RelativeColumn(2); });
+                ReceiptInfoRow(table, "Table:", $"Table {order.TableNumber}");
+                ReceiptInfoRow(table, "Served by:", order.EmployeeName);
+                ReceiptInfoRow(table, "Opened:", order.OpenedAt.ToString("dd MMM yyyy HH:mm"));
+                if (order.ClosedAt.HasValue)
+                    ReceiptInfoRow(table, "Closed:", order.ClosedAt.Value.ToString("dd MMM yyyy HH:mm"));
+                if (!string.IsNullOrEmpty(order.PaymentMethod))
+                    ReceiptInfoRow(table, "Payment:", order.PaymentMethod);
+                if (!string.IsNullOrEmpty(order.Notes))
+                    ReceiptInfoRow(table, "Notes:", order.Notes);
+            });
+
+            col.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+            col.Item().Text("Items").FontSize(11).Bold().FontColor(Colors.Grey.Darken2);
+
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.RelativeColumn(3);
+                    cols.ConstantColumn(28);
+                    cols.RelativeColumn(2);
+                    cols.RelativeColumn(2);
+                });
+
+                table.Header(header =>
+                {
+                    foreach (var h in new[] { "Item", "Qty", "Unit", "Total" })
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(5)
+                            .Text(h).Bold().FontSize(9).FontColor(Colors.Grey.Medium);
+                });
+
+                foreach (var item in order.Items)
+                {
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(5)
+                        .Text(item.MenuItemName);
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(5)
+                        .AlignCenter().Text(item.Quantity.ToString());
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(5)
+                        .AlignRight().Text(item.UnitPrice.ToString("C"));
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(5)
+                        .AlignRight().Text(item.LineTotal.ToString("C")).Bold().FontColor(Colors.Green.Darken2);
+                }
+            });
+
+            col.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(cols => { cols.RelativeColumn(); cols.RelativeColumn(); });
+
+                table.Cell().Padding(4).AlignRight().Text("Subtotal:").FontSize(9).FontColor(Colors.Grey.Medium);
+                table.Cell().Padding(4).AlignRight().Text(order.Subtotal.ToString("C")).FontSize(10);
+
+                if (order.DiscountAmount > 0)
+                {
+                    table.Cell().Padding(4).AlignRight().Text("Discount:").FontSize(9).FontColor(Colors.Grey.Medium);
+                    table.Cell().Padding(4).AlignRight().Text($"-{order.DiscountAmount:C}").FontSize(10).FontColor(Colors.Red.Darken1);
+                }
+
+                if (order.TipAmount > 0)
+                {
+                    table.Cell().Padding(4).AlignRight().Text("Tip:").FontSize(9).FontColor(Colors.Grey.Medium);
+                    table.Cell().Padding(4).AlignRight().Text(order.TipAmount.ToString("C")).FontSize(10).FontColor(Colors.Orange.Darken2);
+                }
+
+                var total = order.Subtotal - order.DiscountAmount + order.TipAmount;
+                table.Cell().Padding(4).AlignRight().Text("TOTAL:").FontSize(13).Bold().FontColor(Colors.Grey.Darken3);
+                table.Cell().Padding(4).AlignRight().Text(total.ToString("C")).FontSize(13).Bold().FontColor(Colors.Green.Darken2);
+            });
+
+            col.Item().PaddingTop(8).AlignCenter()
+                .Text("Thank you for dining with us!")
+                .FontSize(9).Italic().FontColor(Colors.Grey.Medium);
+        });
+
+    private static void ReceiptInfoRow(TableDescriptor table, string label, string value)
+    {
+        table.Cell().Padding(3).Text(label).FontSize(9).FontColor(Colors.Grey.Medium).Bold();
+        table.Cell().Padding(3).Text(value).FontSize(9);
+    }
+
+    // ── Payroll Report ───────────────────────────────────────────────────────
+
+    public Task<string> GeneratePayrollReportAsync(
+        IEnumerable<EmployeePayrollDto> rows,
+        DateOnly from,
+        DateOnly to,
+        CancellationToken ct = default)
+    {
+        var fileName = $"payroll_{from:yyyyMMdd}_{to:yyyyMMdd}_{Guid.NewGuid():N}.pdf";
+        var fullPath = Path.Combine(_reportsDir, fileName);
+        var relativePath = $"/reports/{fileName}";
+
+        var rowList = rows.ToList();
+
+        Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(40);
+                page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+                page.Header().Element(ComposePayrollHeader(from, to));
+                page.Content().Element(ComposePayrollContent(rowList));
+                page.Footer().Element(ComposeFooter());
+            });
+        }).GeneratePdf(fullPath);
+
+        return Task.FromResult(relativePath);
+    }
+
+    private static Action<IContainer> ComposePayrollHeader(DateOnly from, DateOnly to) =>
+        header => header.PaddingBottom(16).Row(row =>
+        {
+            row.RelativeItem().Column(col =>
+            {
+                col.Item().Text("Restaurant POS").FontSize(20).Bold().FontColor(Colors.Grey.Darken3);
+                col.Item().Text("Payroll Summary").FontSize(12).FontColor(Colors.Grey.Medium);
+            });
+            row.ConstantItem(160).AlignRight().Column(col =>
+            {
+                col.Item().Text($"{from:dd MMM yyyy} — {to:dd MMM yyyy}")
+                    .FontSize(10).FontColor(Colors.Grey.Medium);
+                col.Item().Text($"Generated: {DateTime.Now:dd MMM yyyy HH:mm}")
+                    .FontSize(9).FontColor(Colors.Grey.Lighten1);
+            });
+        });
+
+    private static Action<IContainer> ComposePayrollContent(List<EmployeePayrollDto> rows) =>
+        content => content.Column(col =>
+        {
+            col.Spacing(16);
+
+            col.Item().Grid(grid =>
+            {
+                grid.Columns(4);
+                grid.Spacing(8);
+                KpiCell(grid, "Employees", rows.Count.ToString(), Colors.Blue.Darken2);
+                KpiCell(grid, "Total Hours", rows.Sum(r => r.TotalHours).ToString("N1") + "h", Colors.Blue.Darken2);
+                KpiCell(grid, "Total Shifts", rows.Sum(r => r.ShiftCount).ToString(), Colors.Purple.Darken2);
+                KpiCell(grid, "Total Tips", rows.Sum(r => r.TotalTips).ToString("C"), Colors.Orange.Darken2);
+            });
+
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.RelativeColumn(3);
+                    cols.RelativeColumn(2);
+                    cols.ConstantColumn(50);
+                    cols.ConstantColumn(65);
+                    cols.ConstantColumn(65);
+                    cols.RelativeColumn(2);
+                });
+
+                table.Header(header =>
+                {
+                    foreach (var h in new[] { "Employee", "Role", "Shifts", "Hours", "Avg h/shift", "Tips" })
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(7)
+                            .Text(h).Bold().FontSize(9);
+                });
+
+                foreach (var r in rows)
+                {
+                    var avg = r.ShiftCount > 0
+                        ? (r.TotalHours / r.ShiftCount).ToString("N1") + "h"
+                        : "—";
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(7).Text(r.FullName).Bold();
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(7).Text(r.Role).FontColor(Colors.Grey.Medium);
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(7).AlignCenter().Text(r.ShiftCount.ToString());
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(7).AlignRight().Text(r.TotalHours.ToString("N1") + "h").Bold().FontColor(Colors.Blue.Darken2);
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(7).AlignRight().Text(avg).FontColor(Colors.Grey.Medium);
+                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten3).Padding(7).AlignRight().Text(r.TotalTips.ToString("C")).Bold().FontColor(Colors.Orange.Darken2);
+                }
+
+                table.Cell().Background(Colors.Grey.Lighten3).Padding(7).Text("Total").Bold().FontSize(9);
+                table.Cell().Background(Colors.Grey.Lighten3).Padding(7).Text(string.Empty).Bold().FontSize(9);
+                table.Cell().Background(Colors.Grey.Lighten3).Padding(7).AlignCenter().Text(rows.Sum(r => r.ShiftCount).ToString()).Bold();
+                table.Cell().Background(Colors.Grey.Lighten3).Padding(7).AlignRight().Text(rows.Sum(r => r.TotalHours).ToString("N1") + "h").Bold().FontColor(Colors.Blue.Darken2);
+                table.Cell().Background(Colors.Grey.Lighten3).Padding(7).Text(string.Empty).Bold();
+                table.Cell().Background(Colors.Grey.Lighten3).Padding(7).AlignRight().Text(rows.Sum(r => r.TotalTips).ToString("C")).Bold().FontColor(Colors.Orange.Darken2);
+            });
+        });
+
     // ── Footer ───────────────────────────────────────────────────────────────
 
     private static Action<IContainer> ComposeFooter() =>

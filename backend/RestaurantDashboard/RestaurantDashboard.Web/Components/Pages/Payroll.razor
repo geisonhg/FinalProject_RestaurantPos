@@ -3,6 +3,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using MediatR
 @using RestaurantDashboard.Application.Employees.Queries.GetPayrollSummary
+@using RestaurantDashboard.Application.Employees.Commands.GeneratePayrollPdf
 @using RestaurantDashboard.Application.Employees.Dtos
 @inject IMediator Mediator
 @inject IJSRuntime JS
@@ -30,6 +31,9 @@
         @if (rows is not null && rows.Any())
         {
             <button class="pr-btn pr-btn--export" @onclick="ExportCsv">⬇ Export CSV</button>
+            <button class="pr-btn pr-btn--pdf" @onclick="ExportPdf" disabled="@isGeneratingPdf">
+                @(isGeneratingPdf ? "Generating..." : "📄 Export PDF")
+            </button>
         }
     </div>
 
@@ -119,6 +123,9 @@
     .pr-btn--search:hover { background: #2563eb; }
     .pr-btn--export { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; align-self: flex-end; }
     .pr-btn--export:hover { background: #2d3748; color: #e2e8f0; }
+    .pr-btn--pdf { background: #0f2d1a; border: 1px solid #10b981; color: #6ee7b7; align-self: flex-end; }
+    .pr-btn--pdf:hover:not(:disabled) { background: #10b981; color: white; }
+    .pr-btn--pdf:disabled { opacity: 0.5; cursor: not-allowed; }
     .pr-summary { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
     .pr-chip { background: #1e2433; border: 1px solid #2d3748; border-radius: 12px; padding: 0.75rem 1.25rem; min-width: 130px; }
     .pr-chip__label { display: block; font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem; }
@@ -146,6 +153,7 @@
 @code {
     private IReadOnlyList<EmployeePayrollDto>? rows;
     private bool isLoading = false;
+    private bool isGeneratingPdf = false;
     private DateOnly filterFrom = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
     private DateOnly filterTo = DateOnly.FromDateTime(DateTime.Today);
 
@@ -157,6 +165,18 @@
         try { rows = await Mediator.Send(new GetPayrollSummaryQuery { From = filterFrom, To = filterTo }); }
         catch { rows = []; }
         finally { isLoading = false; }
+    }
+
+    private async Task ExportPdf()
+    {
+        isGeneratingPdf = true;
+        try
+        {
+            var path = await Mediator.Send(new GeneratePayrollPdfCommand { From = filterFrom, To = filterTo });
+            await JS.InvokeVoidAsync("window.open", path, "_blank");
+        }
+        catch { }
+        finally { isGeneratingPdf = false; }
     }
 
     private async Task ExportCsv()
