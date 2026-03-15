@@ -5,6 +5,7 @@
 @using RestaurantDashboard.Application.Sales.Queries.GetClosedOrders
 @using RestaurantDashboard.Application.Sales.Dtos
 @inject IMediator Mediator
+@inject IJSRuntime JS
 
 <PageTitle>Sales History</PageTitle>
 
@@ -25,7 +26,21 @@
             <label class="sh-label">To</label>
             <input class="sh-input" type="date" @bind="filterTo" />
         </div>
+        <div class="sh-filter-group">
+            <label class="sh-label">Employee</label>
+            <select class="sh-input" @bind="filterEmployee">
+                <option value="">All employees</option>
+                @foreach (var emp in EmployeeNames)
+                {
+                    <option value="@emp">@emp</option>
+                }
+            </select>
+        </div>
         <button class="sh-btn sh-btn--search" @onclick="Search">🔍 Search</button>
+        @if (orders is not null && orders.Any())
+        {
+            <button class="sh-btn sh-btn--export" @onclick="ExportCsv">⬇ Export CSV</button>
+        }
     </div>
 
     @if (isLoading)
@@ -41,39 +56,48 @@
         <div class="sh-summary">
             <div class="sh-summary-card">
                 <span class="sh-summary-label">Orders</span>
-                <span class="sh-summary-value">@orders.Count</span>
+                <span class="sh-summary-value">@FilteredOrders.Count()</span>
             </div>
             <div class="sh-summary-card">
                 <span class="sh-summary-label">Revenue</span>
-                <span class="sh-summary-value sh-summary-value--green">@orders.Sum(o => o.Subtotal).ToString("C")</span>
+                <span class="sh-summary-value sh-summary-value--green">@FilteredOrders.Sum(o => o.Subtotal).ToString("C")</span>
             </div>
             <div class="sh-summary-card">
                 <span class="sh-summary-label">Avg. Ticket</span>
-                <span class="sh-summary-value">@(orders.Count > 0 ? (orders.Sum(o => o.Subtotal) / orders.Count).ToString("C") : "€0.00")</span>
+                @{ var fo = FilteredOrders.ToList(); }
+                <span class="sh-summary-value">@(fo.Count > 0 ? (fo.Sum(o => o.Subtotal) / fo.Count).ToString("C") : "€0.00")</span>
             </div>
             <div class="sh-summary-card">
                 <span class="sh-summary-label">Tips</span>
-                <span class="sh-summary-value sh-summary-value--green">@orders.Sum(o => o.TipAmount).ToString("C")</span>
+                <span class="sh-summary-value sh-summary-value--green">@FilteredOrders.Sum(o => o.TipAmount).ToString("C")</span>
             </div>
             <div class="sh-summary-card">
                 <span class="sh-summary-label">Items Sold</span>
-                <span class="sh-summary-value">@orders.Sum(o => o.Items.Sum(i => i.Quantity))</span>
+                <span class="sh-summary-value">@FilteredOrders.Sum(o => o.Items.Sum(i => i.Quantity))</span>
             </div>
         </div>
 
-        @if (orders.Any())
+        @if (FilteredOrders.Any())
         {
             <div class="sh-table-wrap">
                 <table class="sh-table">
                     <thead>
                         <tr>
-                            <th>Closed At</th>
-                            <th>Table</th>
+                            <th class="sh-th-sort" @onclick='() => SetSort("ClosedAt")'>
+                                Closed At @SortIcon("ClosedAt")
+                            </th>
+                            <th class="sh-th-sort" @onclick='() => SetSort("Table")'>
+                                Table @SortIcon("Table")
+                            </th>
                             <th>Employee</th>
                             <th>Items</th>
                             <th>Payment</th>
-                            <th>Tip</th>
-                            <th>Total</th>
+                            <th class="sh-th-sort" @onclick='() => SetSort("Tip")'>
+                                Tip @SortIcon("Tip")
+                            </th>
+                            <th class="sh-th-sort" @onclick='() => SetSort("Total")'>
+                                Total @SortIcon("Total")
+                            </th>
                             <th></th>
                         </tr>
                     </thead>
@@ -179,6 +203,8 @@
     .sh-btn { padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
     .sh-btn--search { background: #3b82f6; color: white; align-self: flex-end; }
     .sh-btn--search:hover { background: #2563eb; }
+    .sh-btn--export { background: #1e2433; border: 1px solid #2d3748; color: #94a3b8; align-self: flex-end; }
+    .sh-btn--export:hover { background: #2d3748; color: #e2e8f0; }
 
     .sh-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
     .sh-summary-card { background: #1e2433; border: 1px solid #2d3748; border-radius: 12px; padding: 1rem 1.25rem; }
@@ -189,6 +215,8 @@
     .sh-table-wrap { overflow-x: auto; background: #1e2433; border: 1px solid #2d3748; border-radius: 14px; }
     .sh-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     .sh-table thead th { text-align: left; padding: 0.75rem 1rem; color: #475569; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 1px solid #2d3748; }
+    .sh-th-sort { cursor: pointer; user-select: none; }
+    .sh-th-sort:hover { color: #94a3b8; }
     .sh-table tbody td { padding: 0.85rem 1rem; border-bottom: 1px solid #1a2030; color: #94a3b8; }
     .sh-table tbody tr:last-child td { border-bottom: none; }
     .sh-table tbody tr:hover td { background: #0f1320; }
@@ -233,19 +261,45 @@
     private bool isLoading = false;
 
     private DateOnly filterFrom = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-    private DateOnly filterTo   = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly filterTo = DateOnly.FromDateTime(DateTime.Today);
+    private string filterEmployee = "";
+
+    private string sortBy = "ClosedAt";
+    private bool sortDesc = true;
 
     private Guid? expandedOrderId;
 
     private const int PageSize = 15;
     private int _page = 1;
 
-    private int TotalPages => orders is null || orders.Count == 0
+    private IEnumerable<string> EmployeeNames =>
+        orders?.Select(o => o.EmployeeName).Distinct().OrderBy(n => n)
+        ?? Enumerable.Empty<string>();
+
+    private IEnumerable<OrderDto> FilteredOrders
+    {
+        get
+        {
+            var q = (orders ?? []).AsEnumerable();
+            if (!string.IsNullOrEmpty(filterEmployee))
+                q = q.Where(o => o.EmployeeName == filterEmployee);
+            q = sortBy switch
+            {
+                "Table"   => sortDesc ? q.OrderByDescending(o => o.TableNumber) : q.OrderBy(o => o.TableNumber),
+                "Tip"     => sortDesc ? q.OrderByDescending(o => o.TipAmount)   : q.OrderBy(o => o.TipAmount),
+                "Total"   => sortDesc ? q.OrderByDescending(o => o.Subtotal)    : q.OrderBy(o => o.Subtotal),
+                _         => sortDesc ? q.OrderByDescending(o => o.ClosedAt)    : q.OrderBy(o => o.ClosedAt)
+            };
+            return q;
+        }
+    }
+
+    private int TotalPages => !FilteredOrders.Any()
         ? 1
-        : (int)Math.Ceiling(orders.Count / (double)PageSize);
+        : (int)Math.Ceiling(FilteredOrders.Count() / (double)PageSize);
 
     private IEnumerable<OrderDto> PagedOrders =>
-        (orders ?? []).Skip((_page - 1) * PageSize).Take(PageSize);
+        FilteredOrders.Skip((_page - 1) * PageSize).Take(PageSize);
 
     protected override async Task OnInitializedAsync() => await Search();
 
@@ -254,6 +308,7 @@
         isLoading = true;
         _page = 1;
         expandedOrderId = null;
+        filterEmployee = "";
         try
         {
             orders = await Mediator.Send(new GetClosedOrdersQuery { From = filterFrom, To = filterTo });
@@ -262,6 +317,43 @@
         finally { isLoading = false; }
     }
 
+    private void SetSort(string column)
+    {
+        if (sortBy == column)
+            sortDesc = !sortDesc;
+        else
+        {
+            sortBy = column;
+            sortDesc = true;
+        }
+        _page = 1;
+    }
+
+    private string SortIcon(string column)
+    {
+        if (sortBy != column) return "↕";
+        return sortDesc ? "↓" : "↑";
+    }
+
     private void ToggleExpand(Guid orderId) =>
         expandedOrderId = expandedOrderId == orderId ? null : orderId;
+
+    private async Task ExportCsv()
+    {
+        var rows = new System.Text.StringBuilder();
+        rows.AppendLine("Closed At,Table,Employee,Items,Payment,Tip,Subtotal");
+        foreach (var o in FilteredOrders)
+        {
+            rows.AppendLine(
+                $"\"{o.ClosedAt:dd MMM yyyy HH:mm}\"," +
+                $"Table {o.TableNumber}," +
+                $"\"{o.EmployeeName}\"," +
+                $"{o.Items.Count}," +
+                $"{o.PaymentMethod ?? ""}," +
+                $"{o.TipAmount:F2}," +
+                $"{o.Subtotal:F2}");
+        }
+        var filename = $"sales-history-{filterFrom:yyyy-MM-dd}-to-{filterTo:yyyy-MM-dd}.csv";
+        await JS.InvokeVoidAsync("downloadCsv", filename, rows.ToString());
+    }
 }

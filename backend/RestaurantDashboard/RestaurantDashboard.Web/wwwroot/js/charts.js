@@ -1,5 +1,17 @@
 /* Restaurant Dashboard — Chart.js helpers */
 
+window.downloadCsv = function (filename, content) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
 (function () {
     function hexToRgba(hex, alpha) {
         const r = parseInt(hex.slice(1, 3), 16);

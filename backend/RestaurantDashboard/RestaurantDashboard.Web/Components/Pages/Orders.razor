@@ -46,6 +46,25 @@
     }
     else if (orders is not null && orders.Any())
     {
+        <div class="ord-tables-section">
+            <h3 class="ord-tables-title">Tables</h3>
+            <div class="ord-tables-grid">
+                @for (var t = 1; t <= MaxTable; t++)
+                {
+                    var tableNum = t;
+                    var occupiedOrder = orders.FirstOrDefault(o => o.TableNumber == tableNum);
+                    <div class="ord-table-cell @(occupiedOrder is not null ? "ord-table-cell--occupied" : "ord-table-cell--free")"
+                         @onclick="() => { if (occupiedOrder is not null) SelectOrder(occupiedOrder); }">
+                        <span class="ord-table-cell__num">@tableNum</span>
+                        @if (occupiedOrder is not null)
+                        {
+                            <span class="ord-table-cell__sub">@occupiedOrder.EmployeeName.Split(' ')[0]</span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
         <div class="ord-grid">
             @foreach (var order in orders)
             {
@@ -387,6 +406,16 @@
     .ord-close-summary { display: grid; grid-template-columns: 1fr auto; gap: 0.4rem 1rem; background: #0f1117; border: 1px solid #1e2433; border-radius: 8px; padding: 0.85rem 1rem; font-size: 0.88rem; color: #64748b; align-items: center; }
     .ord-close-total { color: #f8fafc; font-weight: 700; font-size: 1rem; }
 
+    .ord-tables-section { margin-bottom: 1.75rem; }
+    .ord-tables-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; font-weight: 700; margin: 0 0 0.75rem; }
+    .ord-tables-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .ord-table-cell { width: 56px; height: 56px; border-radius: 10px; border: 2px solid; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; transition: all 0.15s; }
+    .ord-table-cell--free { border-color: #1e2433; background: #131720; color: #334155; }
+    .ord-table-cell--occupied { border-color: #3b82f6; background: #1a2540; color: #93c5fd; cursor: pointer; }
+    .ord-table-cell--occupied:hover { background: #1d3461; }
+    .ord-table-cell__num { font-size: 1rem; line-height: 1; }
+    .ord-table-cell__sub { font-size: 0.55rem; color: #60a5fa; font-weight: 500; margin-top: 2px; max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
     .ord-remove-btn { background: none; border: 1px solid #3d1515; color: #ef4444; width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 1rem; line-height: 1; transition: all 0.15s; }
     .ord-remove-btn:hover:not(:disabled) { background: #2d1515; border-color: #ef4444; }
     .ord-remove-btn:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -394,6 +423,7 @@
 
 @code {
     private IReadOnlyList<OrderDto>? orders;
+    private int MaxTable => orders is null || !orders.Any() ? 20 : Math.Max(20, orders.Max(o => o.TableNumber));
     private OrderDto? selectedOrder;
     private Guid? selectedOrderId;
     private bool isLoading = true;
