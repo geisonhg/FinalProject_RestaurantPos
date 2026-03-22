@@ -41,8 +41,19 @@ public sealed class Expense : AggregateRoot
         };
     }
 
-    public void Approve() => IsApproved = true;
-    public void Revoke() => IsApproved = false;
+    public void Approve()
+    {
+        if (IsApproved)
+            throw new Exceptions.DomainException($"Expense '{Id}' is already approved.");
+        IsApproved = true;
+    }
+
+    public void Revoke()
+    {
+        if (!IsApproved)
+            throw new Exceptions.DomainException($"Expense '{Id}' is not approved.");
+        IsApproved = false;
+    }
 
     public void AttachReceipt(string url)
     {

@@ -74,6 +74,8 @@ builder.Services.AddMediatR(cfg =>
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<DashboardStateService>();
+builder.Services.AddScoped<RestaurantDashboard.Application.Common.Interfaces.ICurrentUserService,
+    RestaurantDashboard.Web.Services.BlazorCurrentUserService>();
 
 builder.Services.AddAuthorization(options =>
 {

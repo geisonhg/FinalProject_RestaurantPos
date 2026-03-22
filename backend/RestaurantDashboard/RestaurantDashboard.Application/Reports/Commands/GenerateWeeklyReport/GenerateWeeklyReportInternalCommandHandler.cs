@@ -8,8 +8,12 @@ using RestaurantDashboard.Domain.Repositories;
 
 namespace RestaurantDashboard.Application.Reports.Commands.GenerateWeeklyReport;
 
-public sealed class GenerateWeeklyReportCommandHandler
-    : IRequestHandler<GenerateWeeklyReportCommand, Guid>
+/// <summary>
+/// Handles GenerateWeeklyReportInternalCommand (background job use only).
+/// Shares the same core logic as GenerateWeeklyReportCommandHandler.
+/// </summary>
+public sealed class GenerateWeeklyReportInternalCommandHandler
+    : IRequestHandler<GenerateWeeklyReportInternalCommand, Guid>
 {
     private readonly ISaleRepository _sales;
     private readonly IExpenseRepository _expenses;
@@ -18,7 +22,7 @@ public sealed class GenerateWeeklyReportCommandHandler
     private readonly IEmployeeRepository _employees;
     private readonly IUnitOfWork _uow;
 
-    public GenerateWeeklyReportCommandHandler(
+    public GenerateWeeklyReportInternalCommandHandler(
         ISaleRepository sales,
         IExpenseRepository expenses,
         IReportRepository reports,
@@ -34,7 +38,7 @@ public sealed class GenerateWeeklyReportCommandHandler
         _uow = uow;
     }
 
-    public async Task<Guid> Handle(GenerateWeeklyReportCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> Handle(GenerateWeeklyReportInternalCommand request, CancellationToken cancellationToken)
     {
         _ = await _employees.GetByIdAsync(request.GeneratedByEmployeeId, cancellationToken)
             ?? throw new NotFoundException(nameof(Employee), request.GeneratedByEmployeeId);

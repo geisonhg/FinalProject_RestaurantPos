@@ -24,12 +24,6 @@ public sealed class ClockOutCommandHandler : IRequestHandler<ClockOutCommand, Un
         var activeShift = employee.Shifts.FirstOrDefault(s => s.Id == request.ShiftId)
             ?? throw new NotFoundException("Shift", request.ShiftId);
 
-        var shiftStart = activeShift.Date.ToDateTime(activeShift.ClockIn);
-        var duration = DateTime.UtcNow - shiftStart;
-        if (duration.TotalHours > 16)
-            throw new InvalidOperationException(
-                $"Shift duration exceeds 16 hours ({duration.TotalHours:F1}h). Please contact a manager to close this shift manually.");
-
         employee.ClockOut(request.ShiftId, request.TipsEarned);
 
         _employees.Update(employee);

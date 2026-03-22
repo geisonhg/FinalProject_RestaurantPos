@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using RestaurantDashboard.Application.Reports.Commands.GenerateWeeklyReport;
 using RestaurantDashboard.Domain.Enums;
 using RestaurantDashboard.Domain.Repositories;
+using RestaurantDashboard.Domain.Entities;
 
 namespace RestaurantDashboard.Infrastructure.BackgroundJobs;
 
@@ -55,7 +56,11 @@ public sealed class WeeklyReportJob : BackgroundService
             var employees = scope.ServiceProvider.GetRequiredService<IEmployeeRepository>();
 
             var allEmployees = await employees.GetAllActiveAsync(ct);
-            var systemEmployee = allEmployees.FirstOrDefault();
+
+            // Prefer a Manager or Admin so the report is attributed to a privileged user
+            var systemEmployee =
+                allEmployees.FirstOrDefault(e => e.Role is Domain.Enums.EmployeeRole.Manager or Domain.Enums.EmployeeRole.Admin)
+                ?? allEmployees.FirstOrDefault();
 
             if (systemEmployee is null)
             {
@@ -66,7 +71,9 @@ public sealed class WeeklyReportJob : BackgroundService
             var to = DateOnly.FromDateTime(DateTime.UtcNow.Date);
             var from = to.AddDays(-7);
 
-            var reportId = await mediator.Send(new GenerateWeeklyReportCommand
+            // Use the internal command (no role check) so the background job is not
+            // blocked by the AuthorizationBehavior which has no authenticated user context.
+            var reportId = await mediator.Send(new GenerateWeeklyReportInternalCommand
             {
                 From = from,
                 To = to,

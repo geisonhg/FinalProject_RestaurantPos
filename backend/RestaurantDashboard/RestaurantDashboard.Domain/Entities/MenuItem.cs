@@ -34,7 +34,7 @@ public sealed class MenuItem : AggregateRoot
     public void SetStock(int? quantity)
     {
         if (quantity.HasValue && quantity.Value < 0)
-            throw new ArgumentException("Stock quantity cannot be negative.");
+            throw new Exceptions.DomainException("Stock quantity cannot be negative.");
         StockQuantity = quantity;
     }
 

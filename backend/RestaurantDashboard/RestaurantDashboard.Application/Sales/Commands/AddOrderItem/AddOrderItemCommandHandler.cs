@@ -32,6 +32,10 @@ public sealed class AddOrderItemCommandHandler : IRequestHandler<AddOrderItemCom
         if (!menuItem.IsAvailable)
             throw new Domain.Exceptions.DomainException($"Menu item '{menuItem.Name}' is not available.");
 
+        if (menuItem.StockQuantity.HasValue && menuItem.StockQuantity.Value < request.Quantity)
+            throw new Domain.Exceptions.DomainException(
+                $"Insufficient stock for '{menuItem.Name}'. Requested: {request.Quantity}, available: {menuItem.StockQuantity.Value}.");
+
         order.AddItem(menuItem.Id, menuItem.Name, request.Quantity, menuItem.BasePrice);
 
         _orders.Update(order);

@@ -339,14 +339,9 @@
             var periodDays = toDate.DayNumber - fromDate.DayNumber + 1;
             var prevFrom = fromDate.AddDays(-periodDays);
             var prevTo = fromDate.AddDays(-1);
-            var tasks = new[]
-            {
-                Mediator.Send(new GetSalesSummaryQuery { From = fromDate, To = toDate }),
-                Mediator.Send(new GetSalesSummaryQuery { From = prevFrom, To = prevTo })
-            };
-            await Task.WhenAll(tasks);
-            summary = tasks[0].Result;
-            prevSummary = tasks[1].Result;
+
+            summary = await Mediator.Send(new GetSalesSummaryQuery { From = fromDate, To = toDate });
+            prevSummary = await Mediator.Send(new GetSalesSummaryQuery { From = prevFrom, To = prevTo });
             try { openOrders = await Mediator.Send(new GetOpenOrdersQuery()); } catch { openOrders = []; }
             try { pendingExpenses = await Mediator.Send(new GetExpensesQuery { From = DateOnly.FromDateTime(DateTime.Today.AddDays(-30)), To = DateOnly.FromDateTime(DateTime.Today) }); } catch { pendingExpenses = []; }
         }

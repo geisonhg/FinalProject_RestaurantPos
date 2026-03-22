@@ -1,11 +1,13 @@
 using MediatR;
+using RestaurantDashboard.Application.Common.Interfaces;
 using RestaurantDashboard.Application.Employees.Dtos;
 using RestaurantDashboard.Domain.Enums;
 
 namespace RestaurantDashboard.Application.Employees.Commands.UpdateEmployee;
 
-public sealed record UpdateEmployeeCommand : IRequest<EmployeeDto>
+public sealed record UpdateEmployeeCommand : IRequest<EmployeeDto>, IRequireRole
 {
+    public string RequiredRole => AppRoles.Admin;
     public Guid EmployeeId { get; init; }
     public string FirstName { get; init; } = default!;
     public string LastName { get; init; } = default!;

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using RestaurantDashboard.Application.Common.Interfaces;
 using RestaurantDashboard.Domain.Entities;
 using RestaurantDashboard.Domain.Enums;
 using RestaurantDashboard.Domain.ValueObjects;
@@ -9,7 +10,7 @@ namespace RestaurantDashboard.Infrastructure.Persistence.Seeders;
 
 public static class DataSeeder
 {
-    private static readonly string[] RoleNames = ["Admin", "Manager", "Staff"];
+    private static readonly string[] RoleNames = [AppRoles.Admin, AppRoles.Manager, AppRoles.Staff];
 
     public static async Task SeedAsync(
         AppDbContext context,
@@ -45,9 +46,9 @@ public static class DataSeeder
 
         var seeds = new[]
         {
-            (Email: "admin@restaurant.com",   Password: "Admin@12345!",   Role: "Admin",   EmpRole: EmployeeRole.Admin,   First: "Admin",  Last: "User"),
-            (Email: "manager@restaurant.com", Password: "Manager@12345!", Role: "Manager", EmpRole: EmployeeRole.Manager, First: "Sarah",  Last: "Connor"),
-            (Email: "staff@restaurant.com",   Password: "Staff@12345!",   Role: "Staff",   EmpRole: EmployeeRole.Waiter,  First: "John",   Last: "Smith")
+            (Email: "admin@restaurant.com",   Password: "Admin@12345!",   Role: AppRoles.Admin,   EmpRole: EmployeeRole.Admin,   First: "Admin",  Last: "User"),
+            (Email: "manager@restaurant.com", Password: "Manager@12345!", Role: AppRoles.Manager, EmpRole: EmployeeRole.Manager, First: "Sarah",  Last: "Connor"),
+            (Email: "staff@restaurant.com",   Password: "Staff@12345!",   Role: AppRoles.Staff,   EmpRole: EmployeeRole.Waiter,  First: "John",   Last: "Smith")
         };
 
         foreach (var seed in seeds)

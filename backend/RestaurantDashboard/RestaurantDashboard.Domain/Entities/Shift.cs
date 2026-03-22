@@ -13,9 +13,16 @@ public sealed class Shift : Entity
     public decimal TipsEarned { get; private set; }
     public ShiftStatus Status { get; private set; }
 
-    public TimeSpan Duration => ClockOut.HasValue
-        ? ClockOut.Value - ClockIn
-        : TimeSpan.Zero;
+    public TimeSpan Duration
+    {
+        get
+        {
+            if (!ClockOut.HasValue) return TimeSpan.Zero;
+            var duration = ClockOut.Value - ClockIn;
+            // Handle overnight shifts (e.g. 23:00 → 03:00 next day)
+            return duration < TimeSpan.Zero ? duration.Add(TimeSpan.FromHours(24)) : duration;
+        }
+    }
 
     private Shift() { }
 
@@ -37,8 +44,14 @@ public sealed class Shift : Entity
         if (Status != ShiftStatus.Active)
             throw new DomainException($"Cannot close a shift with status '{Status}'.");
 
-        if (clockOut < ClockIn)
-            throw new DomainException("Clock-out time cannot be before clock-in time.");
+        // Allow overnight shifts (clockOut < ClockIn means next-day clock-out)
+        var tentativeDuration = clockOut - ClockIn;
+        if (tentativeDuration < TimeSpan.Zero)
+            tentativeDuration = tentativeDuration.Add(TimeSpan.FromHours(24));
+
+        if (tentativeDuration.TotalHours > 16)
+            throw new DomainException(
+                $"Shift duration exceeds the 16-hour limit ({tentativeDuration.TotalHours:F1}h). Contact a manager to close this shift manually.");
 
         Guard.AgainstNegative(tipsEarned, nameof(tipsEarned));
 
