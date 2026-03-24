@@ -7,51 +7,80 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  SOLUTION: RestaurantDashboard.sln
+  WEB_PROJECT: backend/RestaurantDashboard/RestaurantDashboard.Web/RestaurantDashboard.Web.csproj
+
 jobs:
-  ci:
-    name: Build, Test & Publish
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 1 · Format check (fast gate — runs before build)
+  # ────────────────────────────────────────────────────────────────────────────
+  format:
+    name: Format Check
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # ── 1. Restore (cached) — must run before format check ────────────────
-      - name: Cache NuGet packages
+      - name: Cache NuGet
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          restore-keys: ${{ runner.os }}-nuget-
 
       - name: Restore
-        run: dotnet restore RestaurantDashboard.sln
+        run: dotnet restore ${{ env.SOLUTION }}
 
-      # ── 2. Format check ───────────────────────────────────────────────────
       - name: Format check
-        run: dotnet format RestaurantDashboard.sln --verify-no-changes --no-restore
+        run: dotnet format ${{ env.SOLUTION }} --verify-no-changes --no-restore
 
-      # ── 3. Build ──────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 2 · Build & Test + coverage report
+  # ────────────────────────────────────────────────────────────────────────────
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    needs: format
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION }}
+
       - name: Build
-        run: dotnet build RestaurantDashboard.sln --no-restore --configuration Release
+        run: dotnet build ${{ env.SOLUTION }} --no-restore --configuration Release
 
-      # ── 4. Test + coverage ────────────────────────────────────────────────
       - name: Test
         run: |
-          dotnet test RestaurantDashboard.sln \
+          dotnet test ${{ env.SOLUTION }} \
             --no-build \
             --configuration Release \
             --collect:"XPlat Code Coverage" \
             --results-directory TestResults/ \
-            --logger "trx;LogFileName=test-results.trx"
+            --logger "trx;LogFileName=test-results.trx" \
+            --logger "console;verbosity=normal"
 
-      # ── 5. Coverage summary (ReportGenerator) ────────────────────────────
       - name: Install ReportGenerator
         run: dotnet tool install --global dotnet-reportgenerator-globaltool
 
@@ -60,16 +89,100 @@ jobs:
           reportgenerator \
             -reports:"TestResults/**/coverage.cobertura.xml" \
             -targetdir:"TestResults/CoverageReport" \
-            -reporttypes:"MarkdownSummaryGithub"
+            -reporttypes:"MarkdownSummaryGithub;Html;Cobertura"
 
-      - name: Post coverage summary
+      - name: Post coverage to job summary
         run: cat TestResults/CoverageReport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
 
-      # ── 6. Publish web artifact ───────────────────────────────────────────
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: TestResults/CoverageReport/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 3 · Security — check for vulnerable NuGet packages
+  # ────────────────────────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: format
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION }}
+
+      - name: Check for vulnerable packages
+        run: |
+          dotnet list ${{ env.SOLUTION }} package --vulnerable --include-transitive 2>&1 | tee vuln-report.txt
+          if grep -q "has the following vulnerable packages" vuln-report.txt; then
+            echo "::error::Vulnerable NuGet packages found. See report above."
+            exit 1
+          fi
+
+      - name: Check for deprecated packages
+        run: dotnet list ${{ env.SOLUTION }} package --deprecated 2>&1 | tee deprecated-report.txt
+        continue-on-error: true
+
+      - name: Post security summary
+        if: always()
+        run: |
+          echo "## Security Scan" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat vuln-report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 4 · Publish artifact (only on push to main)
+  # ────────────────────────────────────────────────────────────────────────────
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs: [build-and-test, security]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION }}
+
       - name: Publish web app
         run: |
-          dotnet publish \
-            backend/RestaurantDashboard/RestaurantDashboard.Web/RestaurantDashboard.Web.csproj \
+          dotnet publish ${{ env.WEB_PROJECT }} \
             --no-restore \
             --configuration Release \
             --output publish/
@@ -77,13 +190,6 @@ jobs:
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
-          name: restaurant-dashboard-web
+          name: restaurant-pos-web
           path: publish/
-
-      # ── 7. Upload test results ────────────────────────────────────────────
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: TestResults/
+          retention-days: 30
