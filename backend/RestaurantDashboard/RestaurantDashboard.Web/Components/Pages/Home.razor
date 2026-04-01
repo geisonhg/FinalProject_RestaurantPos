@@ -1,6 +1,25 @@
 @page "/"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Authorization
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
 
 @code {
-    protected override void OnInitialized() => Nav.NavigateTo("/dashboard", replace: true);
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                Nav.NavigateTo("/dashboard", forceLoad: true, replace: true);
+            }
+            else
+            {
+                Nav.NavigateTo("/Account/Login", forceLoad: true, replace: true);
+            }
+        }
+    }
 }
